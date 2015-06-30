@@ -16,6 +16,20 @@ then
 	echo '*** mkdir new'
 fi
 
+echo '*** move filesystem.squashfs to old '
+if [ ! mv filesystem.squashfs old ] 
+then
+	echo '*** move failed'
+	exit 1
+fi
+
+echo '*** backup casper-rw to old '
+if [ ! cp casper-rw old ] 
+then
+	echo '*** backup failed'
+	exit 1
+fi
+
 cd usblive
 [ $? == 0 ] || (echo '***' failed: cd usblive; exit 1)
 
@@ -56,7 +70,7 @@ df -h
 
 echo
 
-mksquashfs merged ../new/filesystem.squashfs
+mksquashfs merged ../filesystem.squashfs
 if [ $? != 0 ]
 then
 	echo mksquashfs failed
@@ -64,6 +78,5 @@ then
 fi
 
 umount *
-mv ../old/casper-rw ../new
-mkfs.ext4 -L casper-rw ../new/casper-rw
+mkfs.ext4 -L casper-rw ../casper-rw
 
