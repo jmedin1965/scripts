@@ -11,4 +11,5 @@ git pull https://jmedin1965@github.com/jmedin1965/local
 To set up some defaults so you don't have to keep typing 'git push origin master'
 
 git remote add origin https://jmedin1965@github.com/jmedin1965/local
+
 git push --set-upstream origin master
