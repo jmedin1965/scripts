@@ -1,0 +1,12 @@
+#!/bin/bash
+
+#
+# add the following to ~/.gitconfig file
+#
+#[diff]
+#	external = /usr/local/bin/meld-for-git
+#[user]
+#	name = Juan Medin
+#	email = jmedin1965@gmail.com
+
+/usr/bin/meld "$2" "$5"
