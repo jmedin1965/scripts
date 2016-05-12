@@ -2,6 +2,8 @@
 # Mount a novell share to the users home directory
 #
 
+#
+#
 root="no"
 drive=""
 server=""
