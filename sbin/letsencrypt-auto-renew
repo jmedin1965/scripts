@@ -1,0 +1,7 @@
+#!/bin/sh
+if ! /usr/local/bin/letsencrypt-auto renew > /var/log/letsencrypt/renew.log 2>&1 ; then
+    echo Automated renewal failed:
+    /usr/bin/mail -s "Automated renewal failed: $(/bin/hostname)" jmedin@joy.com < /var/log/letsencrypt/renew.log
+    exit 1
+fi
+
