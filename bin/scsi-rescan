@@ -1,0 +1,5 @@
+for dev in /sys/block/sd?/device/rescan
+do
+	echo dev=$dev
+	echo 1 > "$dev"
+done
