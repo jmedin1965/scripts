@@ -4,9 +4,13 @@ then
 	opts="--test-cert"
 fi
 
-letsencrypt-auto certonly $opts \
-	--webroot -w /home/git/gitlab/public \
-	-d gitlab.jmsh-home.dtdns.net \
-	-d gitlab.dsl-jmsh.dtdns.net \
-	-d gitlab.oxleymassage.dtdns.net
-	
+#opts="--test-cert"
+cmd="letsencrypt-auto certonly $opts --webroot -w /home/git/gitlab/public"
+host="gitlab"
+
+for domain in jmsh-home.dtdns.net dsl-jmsh.dtdns.net oxleymassage.dtdns.net
+do
+	cmd="$cmd -d $host.$domain"
+done
+
+$cmd
