@@ -5,12 +5,22 @@ then
 fi
 
 #opts="--test-cert"
-cmd="letsencrypt-auto certonly $opts --webroot -w /home/git/gitlab/public"
-host="gitlab"
+cmd="letsencrypt-auto certonly $opts --webroot -w /var/www"
 
-for domain in jmsh-home.dtdns.net dsl-jmsh.dtdns.net oxleymassage.dtdns.net
+for host in gitlab
 do
-	cmd="$cmd -d $host.$domain"
+	if [ "$host" == '.' ]
+	then
+		host=""
+	else
+		host="$host."
+	fi
+
+	for domain in jmsh-home.dtdns.net dsl-jmsh.dtdns.net oxleymassage.dtdns.net
+	do
+		cmd="$cmd -d $host$domain"
+	done
 done
 
-$cmd
+echo $cmd && /etc/init.d/apache2 restart
+

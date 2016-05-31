@@ -4,15 +4,23 @@ then
 	opts="--test-cert"
 fi
 
-letsencrypt-auto $opts \
-	--apache \
-	-d dsl-jmsh.dtdns.net \
-	-d jmsh-home.dtdns.net \
-	-d oxleymassage.dtdns.net \
-	-d www.dsl-jmsh.dtdns.net \
-	-d www.jmsh-home.dtdns.net \
-	-d www.oxleymassage.dtdns.net \
-	-d ipfire.dsl-jmsh.dtdns.net \
-	-d ipfire.jmsh-home.dtdns.net \
-	-d ipfire.oxleymassage.dtdns.net \
-	
+#opts="--test-cert"
+cmd="letsencrypt-auto certonly $opts --webroot -w /var/www"
+
+for host in ipfire www .
+do
+	if [ "$host" == '.' ]
+	then
+		host=""
+	else
+		host="$host."
+	fi
+
+	for domain in jmsh-home.dtdns.net dsl-jmsh.dtdns.net oxleymassage.dtdns.net
+	do
+		cmd="$cmd -d $host$domain"
+	done
+done
+
+$cmd && /etc/init.d/apache2 restart
+
