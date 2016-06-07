@@ -1,7 +1,15 @@
 #!/bin/sh
-if ! /usr/local/bin/letsencrypt-auto renew > /var/log/letsencrypt/renew.log 2>&1 ; then
-    echo Automated renewal failed:
-    /usr/bin/mail -s "Automated renewal failed: $(/bin/hostname)" jmedin@joy.com < /var/log/letsencrypt/renew.log
-    exit 1
+
+prog="/usr/local/bin/letsencrypt-auto renew"
+log="/var/log/letsencrypt/renew.log"
+sucessMsg="No renewals were attempted."
+mailSubject="${prog##*/} from $(/bin/hostname)"
+mailTo="root"
+
+msg="$($prog 2>&1; echo ;echo EV = $?)"
+[ -n "$log" ] && echo "$msg" >> "$log"
+if [ "$(echo "$msg" | /bin/fgrep -c "$sucessMsg")" -eq 0 ]
+then
+	echo "$msg" | /usr/bin/mail -s "$mailSubject" $mailTo
 fi
 

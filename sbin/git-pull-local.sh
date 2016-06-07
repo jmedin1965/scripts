@@ -1,10 +1,18 @@
 #!/bin/bash
 
 cd /usr/local
-if [ -d .git ]
+[ -d .git ] || (echo "/usr/log: not a git repo"; exit 1)
+
+prog="/usr/bin/git pull"
+log=""
+sucessMsg="Already up-to-date."
+mailSubject="${prog##*/} for /usr/local from $(/bin/hostname)"
+mailTo="root"
+
+msg="$($prog 2>&1; echo ;echo EV = $?)"
+[ -n "$log" ] && echo "$msg" >> "$log"
+if [ "$(echo "$msg" | /bin/fgrep -c "$sucessMsg")" -eq 0 ]
 then
-	echo "git exists"
-	git pull
-	echo ev=$?
+	echo "$msg" | /usr/bin/mail -s "$mailSubject" $mailTo
 fi
 
