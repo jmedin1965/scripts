@@ -11,5 +11,8 @@ msg="$($prog 2>&1; echo ;echo EV = $?)"
 if [ "$(echo "$msg" | /bin/fgrep -c "$sucessMsg")" -eq 0 ]
 then
 	echo "$msg" | /usr/bin/mail -s "$mailSubject" $mailTo
+	/etc/init.d/apache2 restart >> "$log" 2>&1
+	[ -f /etc/letsencrypt/live/certs.md5 ] && mv /etc/letsencrypt/live/certs.md5.old
+	md5sum /etc/letsencrypt/live/*/* > /etc/letsencrypt/live/certs.md5
 fi
 
