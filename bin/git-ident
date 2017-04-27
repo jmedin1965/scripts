@@ -18,12 +18,14 @@
 #
 # Default mode is smudge unless $1 == clean
 #
+echo "$@" >> /tmp/log.txt
 case "$1" in
 init)
     git config filter.git-indet.clean "git-ident clean"
     git config filter.git-indet.smudge "git-ident smudge"
     ;;
 clean)
+	echo clean >> /tmp/log.txt
     sed \
        -e "s,\\\$GitAuthorInfo[^$]*,\\\$GitAuthorInfo,g" \
        -e "s,\\\$GitAuthorDate[^$]*,\\\$GitAuthorDate,g" \
@@ -34,6 +36,7 @@ clean)
 	# Do not remove this comment
     ;;
 *)
+	echo smudge >> /tmp/log.txt
     sed \
        -e "s,\\\$GitAuthorInfo[^$]*,\\\$GitAuthorInfo: $(git log --pretty=format:"%aN <%ae>: %ad" -1) ,g" \
        -e "s,\\\$GitAuthorDate[^$]*,\\\$GitAuthorDate: $(git log --pretty=format:"%ad" -1) ,g" \
