@@ -12,6 +12,27 @@ Linux "/usr/local" scripts
 Just a collection of scripts I keep re-cerating or copying arround on my ubuntu linux machines.
 This is my first attempt at managing this via a github repository.
 
+How to connect
+~~~~~~~~~~~~~~
+
+If you have existing files in /user/local, then be very careful as you may loose these. Either way, don't download the repo directly into /usr/local. cd to a directory that does not have a sub-folder called local and do the following
+
+mkdir local
+cd local
+git init
+git remote add origin  https://jmedin1965@github.com/jmedin1965/local
+git config branch.master.remote origin
+git config branch.master.merge refs/heads/master
+git config http.postBuffer 524288000
+git pull
+Then merge the downloaded files into your /usr/local by copying what you need.
+
+After this, mv the local/.git and local/.gitignore to /usr/local
+
+Once this is done, do a git commit to see what is different and add what you want ignored to the .gitignore file so it doesn't get removed or doesn't interfere.
+
+You can then use "git push" and "git pull"
+
 Please check out the WIKI for information: https://github.com/jmedin1965/local/wiki
 
 bin/compare-packages-on-other-machine.sh
