@@ -1,11 +1,11 @@
 # local - a collection of scripts for /usr/local
 
-$GitAuthorInfo: Juan Medin <jmedin@joy.com>: Thu Apr 27 23:34:27 2017 +1000 $
-$GitAuthorDate: Thu Apr 27 23:34:27 2017 +1000 $
-$GitAuthorName: Juan Medin $
-$GitAuthorEmail: jmedin@joy.com $
-$GitTagsLong:  $
-$GitTagsShort:  $
+$GitAuthorInfo$
+$GitAuthorDate$
+$GitAuthorName$
+$GitAuthorEmail$
+$GitTagsLong$
+$GitTagsShort$
 
 
 Just a collection of scripts I keep re-cerating or copying arround on my ubuntu linux machines.
