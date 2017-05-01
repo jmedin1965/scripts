@@ -1,19 +1,17 @@
-# local
+# local - a collection of scripts for /usr/local
 
-$GitAuthorInfo$
-$GitAuthorDate$
-$GitAuthorName$
-$GitAuthorEmail$
-$GitTagsLong$
-$GitTagsShort$
+$GitAuthorInfo: Juan Medin <jmedin@joy.com>: Thu Apr 27 23:34:27 2017 +1000 $
+$GitAuthorDate: Thu Apr 27 23:34:27 2017 +1000 $
+$GitAuthorName: Juan Medin $
+$GitAuthorEmail: jmedin@joy.com $
+$GitTagsLong:  $
+$GitTagsShort:  $
 
-Linux "/usr/local" scripts
 
 Just a collection of scripts I keep re-cerating or copying arround on my ubuntu linux machines.
 This is my first attempt at managing this via a github repository.
 
-How to connect
-~~~~~~~~~~~~~~
+## How to connect
 
 If you have existing files in /user/local, then be very careful as you may loose these. Either way, don't download the repo directly into /usr/local. cd to a directory that does not have a sub-folder called local and do the following
 

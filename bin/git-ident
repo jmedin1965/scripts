@@ -18,11 +18,10 @@
 #
 # Default mode is smudge unless $1 == clean
 #
-echo "$@" >> /tmp/log.txt
 case "$1" in
 init)
-    git config filter.git-indet.clean "git-ident clean"
-    git config filter.git-indet.smudge "git-ident smudge"
+    git config filter.git-ident.clean  "git-ident clean"
+    git config filter.git-ident.smudge "git-ident smudge"
     ;;
 clean)
 	echo clean >> /tmp/log.txt
