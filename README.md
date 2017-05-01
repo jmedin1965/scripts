@@ -33,6 +33,8 @@ You can then use "git push" and "git pull"
 
 Please check out the WIKI for information: https://github.com/jmedin1965/local/wiki
 
+## The file list
+
 bin/compare-packages-on-other-machine.sh
 bin/compiz-detect-window-properties.sh
 bin/convert-to-3gp.sh
