@@ -9,7 +9,7 @@ mailTo="root"
 
 case "$hostname" in
 "ipfire")
-	cd /root/local;;
+	cd /opt/git-repo/local;;
 *)
 	cd /usr/local;;
 esac
