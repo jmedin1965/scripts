@@ -1,0 +1,2 @@
+README.md	filter=git-ident
+*.txt		filter=git-ident
