@@ -5,14 +5,15 @@ prog="/usr/bin/git pull"
 log=""
 sucessMsg="Already up-to-date."
 mailSubject="${prog##*/} for /usr/local from $hostname"
-mailTo="root"
+mailTo="jmedin@joy.com"
 
-case "$hostname" in
-"ipfire")
-	cd /opt/git-repo/local;;
-*)
-	cd /usr/local;;
-esac
+if [ -d /opt/git-repo/local/.git ]
+then
+	cd /opt/git-repo/local
+else
+	cd /usr/local
+	echo "$hostname: still on /usr/local" | /usr/bin/mail -s "$hostname: still on /usr/local" $mailTo
+fi
 
 pwd="$(pwd)"
 

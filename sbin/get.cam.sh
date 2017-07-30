@@ -67,6 +67,35 @@ get_file()
 }
 
 
+clean_old_files()
+{
+	dir="$1"
+	tzise="0"
+	count="0"
+	del="0"
+
+	if [ -d "$dir" ]
+	then
+		ls -t $dir | while read file
+		do
+			file="$dir/$file"
+			if [ -f "$file" ]
+			then
+				size=$(/usr/bin/stat --printf=%s "$file")
+				tsize=$(/usr/bin/expr $tsize + $size)
+				count=$(/usr/bin/expr $count + 1)
+				if [ $tsize -gt 32768000000 ]
+				then
+					del="1"
+					/bin/rm -f "$file" 
+
+					echo clean: $file $size $tsize $count
+				fi
+			fi
+		done
+	fi
+}
+
 cd /home/mythtv/cams
 
 (
@@ -77,6 +106,8 @@ cd /home/mythtv/cams
 
 for cam in 192.168.0.162
 do
+	clean_old_files "$cam/crud" >> $cam.log
+
 	page_maxitem=1
 	page_max=1
 	if [ "$1" == "" ]
@@ -141,3 +172,4 @@ done
 	echo "download finished on $(/bin/date)" 
 	echo
 ) >> $cam.log
+
