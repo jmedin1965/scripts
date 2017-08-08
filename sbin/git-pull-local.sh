@@ -21,6 +21,7 @@ pwd="$(pwd)"
 
 msg="$($prog 2>&1; echo ;echo EV = $?)"
 [ -n "$log" ] && echo "$msg" >> "$log"
+/usr/bin/tty -s && echo $msg
 if [ "$(echo "$msg" | /bin/fgrep -c "$sucessMsg")" -eq 0 ]
 then
 	if [ -x /usr/bin/mail ]
