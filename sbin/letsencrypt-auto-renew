@@ -6,13 +6,26 @@ sucessMsg="No renewals were attempted."
 mailSubject="${prog##*/} from $(/bin/hostname)"
 mailTo="root"
 
-msg="$($prog 2>&1; echo ;echo EV = $?)"
-[ -n "$log" ] && echo "$msg" >> "$log"
-if [ "$(echo "$msg" | /bin/fgrep -c "$sucessMsg")" -eq 0 ]
+if [ "$(/bin/ls /etc/letsencrypt/renewal | /usr/bin/wc -l)" != 1 ]
 then
-	echo "$msg" | /usr/bin/mail -s "$mailSubject" $mailTo
+	#echo running le
+	msg="$($prog 2>&1; echo ;echo EV = $?)"
+	[ -n "$log" ] && echo "$msg" >> "$log"
+	if [ "$(echo "$msg" | /bin/fgrep -c "$sucessMsg")" -eq 0 ]
+	then
+	#echo emailing
+		echo "$msg" | /usr/bin/mail -s "$mailSubject" $mailTo
+	fi
+fi
+#
+# Check if cer is different to what it was
+#
+[ -f /etc/letsencrypt/certs.md5 ] && mv /etc/letsencrypt/certs.md5 /etc/letsencrypt/certs.md5.old
+/usr/bin/md5sum /etc/letsencrypt/live/*/* > /etc/letsencrypt/certs.md5
+
+if [ -f /etc/letsencrypt/certs.md5.old -a "$(/bin/cat /etc/letsencrypt/certs.md5)" != "$(/bin/cat /etc/letsencrypt/certs.md5.old)" ]
+then
+	#echo restarting apache
 	/etc/init.d/apache2 restart >> "$log" 2>&1
-	[ -f /etc/letsencrypt/live/certs.md5 ] && mv /etc/letsencrypt/live/certs.md5 /etc/letsencrypt/live/certs.md5.old
-	md5sum /etc/letsencrypt/live/*/* > /etc/letsencrypt/live/certs.md5
 fi
 
