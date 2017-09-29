@@ -9,7 +9,7 @@ mailTo="root"
 
 [ -d "$logdir" ] || /bin/mkdir -p "$logdir"
 /usr//bin/tty -s && echo "start run: $prog"
-msg="$($prog 2>&1; echo ;echo EV = $?)"
+msg="$(/bin/date "+%b %d %H:%M:%S getssl"; $prog 2>&1; echo ;echo EV = $?)"
 [ -n "$log" ] && echo "$msg" >> "$log"
 if [ "$(echo "$msg" | /bin/fgrep -c "$sucessMsg")" -eq 0 ]
 then
