@@ -25,7 +25,7 @@ $prog 2>&1 | (
 
 
 	log "start cert check: runnng from ${hostname}: $prog"
-	log "random sleep for $sleep minutes"
+	log "random sleep for $sleep seconds"
 
 	/bin/sleep $sleep
 
