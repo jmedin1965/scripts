@@ -1,0 +1,73 @@
+
+msg=""
+logf=""
+screen="/dev/null"
+mailTo="jmedin@joy.com"
+
+log_init()
+{
+	msg=""
+	logf="$1"
+	local logd="$(/usr/bin/dirname "$logf")"
+
+	/usr/bin/tty -s && screen="/dev/stdout"
+	[ -d "$logd" ] || /bin/mkdir -p "$logd"
+}
+
+
+log()
+{
+	date="$(/bin/date "+%b %d %H:%M:%S")"
+	echo      "${date}: ${progName}: $@" >> "$screen"
+	[ -n "$logf" ] && echo      "${date}: ${progName}: $@" >> "$logf"
+	msg="${msg}${date}: ${progName}: $@
+"
+
+}
+
+mail()
+{
+	local subject
+	local to
+	local doOpts="yes"
+
+        if [ -x /usr/bin/mail ]
+        then
+		log "mail using /usr/bin/mail $@"
+                /usr/bin/mail "$@"
+
+        elif [ -x /usr/local/bin/sendEmail ]
+        then
+		while [ "$doOpts" == yes -a $# != 0 ]
+		do
+			case "$1" in
+				"-s")	shift
+					subject="$1"
+					shift
+					;;
+				*)	doOpts="done"
+					;;
+			esac
+
+		done
+
+		to="$1"
+		shift
+
+		while [ $# != 0 ]
+		do
+			to="${to},$1"
+			shift
+		done
+
+		log "mail using /usr/local/bin/sendEmail"
+		log "mail with subject=$subject, to=$to"
+		/usr/local/bin/sendEmail \
+			-f root@$(/bin/hostname -f) \
+                        -t "$to" \
+                        -s smtp.dodo.com \
+			-o message-file=/dev/stdin \
+                        -u "$subject"
+        fi
+}
+
