@@ -1,39 +1,81 @@
 #!/bin/bash
 
-hostname="$(/bin/hostname)"
-prog="/usr/bin/git pull"
-log=""
-sucessMsg="Already up-to-date."
-mailSubject="${prog##*/} for /usr/local from $hostname"
-mailTo="jmedin@joy.com"
+. /usr/local/sbin/local-functions
 
-if [ -d /opt/git-repo/local/.git ]
+prog="/usr/bin/git pull"
+mailSubject="${prog##*/} for /opt-git-repo from $hostname"
+mailTo="jmedin@joy.com"
+doMail="false"
+readlink="/usr/bin/readlink" && [ -x "/bin/readlink" ] && readlink="/bin/readlink"
+
+
+do_prog()
+{
+	local prog="$1"
+	local EV
+
+	$prog 2>&1
+	EV="$?"
+	echo EV = $?
+
+	return $EV
+}
+
+check_results()
+{
+	local result="$1"
+	local sucessMsg="$2"
+
+	if [ "$(/bin/fgrep -c "$sucessMsg" <<< "$result")" -eq 0 ]
+	then
+		doMail="true"
+		log "doMail=$doMail"
+	fi
+}
+
+log_init
+
+#
+# check location of /usr/bin/local
+#
+if [ -d "/usr/bin/local/.git" -a "$($readlink "/usr/bin/local/.git")" != "/opt/git-repo/local/.git" ]
 then
-	cd /opt/git-repo/local
-else
-	cd /usr/local
-	echo "$hostname: still on /usr/local" | /usr/bin/mail -s "$hostname: still on /usr/local" $mailTo
+	log "error: $hostname: still has .git on /usr/local/.git"
+	doMail="true"
 fi
 
 pwd="$(pwd)"
 
-[ -d .git ] || (echo "$pwd: not a git repo"; exit 1)
-
-msg="$($prog 2>&1; echo ;echo EV = $?)"
-[ -n "$log" ] && echo "$msg" >> "$log"
-/usr/bin/tty -s && echo $msg
-if [ "$(echo "$msg" | /bin/fgrep -c "$sucessMsg")" -eq 0 ]
-then
-	if [ -x /usr/bin/mail ]
+#
+# Process /opt/git-repo
+#
+for repo in /opt/git-repo/*/.git
+do
+	if [ -d "$repo" ]
 	then
-		echo "$msg" | /usr/bin/mail -s "$mailSubject" $mailTo
-		
-	elif [ -x /usr/local/bin/sendEmail ]
-	then
-		echo "$msg" | /usr/local/bin/sendEmail \
-			-f root@ipfire.jmsh-home.dtdns.net \
-			-t jmedin@joy.com \
-			-s smtp.dodo.com \
-			-u "$mailSubject"
+		repo="$(/usr/bin/dirname "$repo")"
+		log "processing repo $repo"
+		cd "$repo"
+		results="$(do_prog "/usr/bin/git pull")"
+		log "$results"
+		check_results "$results" "Already up-to-date."
 	fi
+done
+
+#
+# Process gitlab
+#
+log "processing gitlab-ce"
+if [ -f /opt/gitlab/version-manifest.txt ]
+then
+	results="$(do_prog "/usr/bin/apt-get install --dry-run gitlab-ce")"
+	log "$results"
+	check_results "$results" "is already the newest version."
+else
+	log "gitlab-ce: not installed on this system"
 fi
+
+cd "$pwd"
+
+[ "$doMail" == true ] && mail -s "$mailSubject" $mailTo <<< "$msg"
+

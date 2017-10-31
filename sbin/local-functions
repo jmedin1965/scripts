@@ -1,8 +1,11 @@
+#!/bin/bash
 
 msg=""
 logf=""
 screen="/dev/null"
 mailTo="jmedin@joy.com"
+progName="$(/usr/bin/basename "$0")"
+hostname="$(/bin/hostname)"
 
 log_init()
 {
@@ -10,8 +13,9 @@ log_init()
 	logf="$1"
 	local logd="$(/usr/bin/dirname "$logf")"
 
-	/usr/bin/tty -s && screen="/dev/stdout"
-	[ -d "$logd" ] || /bin/mkdir -p "$logd"
+	/usr/bin/tty -s  && screen="/dev/stdout"
+	[ ! -d "$logd" ] && /bin/mkdir -p "$logd"
+	[ -n "$logf" ]   && log "logging to: $logd"
 }
 
 

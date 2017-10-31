@@ -2,10 +2,12 @@
 
 . /usr/local/sbin/local-functions
 
-progName="getssl"
-prog="/usr/local/sbin/${progName} --all --upgrade"
 
-log_init "/var/log/${progName}/renew.log"
+prog="/usr/local/sbin/getssl --all --upgrade -w /etc/getssl --keep 40"
+
+
+log_init "/var/log/getssl/renew.log"
+
 
 $prog 2>&1 | (
 
