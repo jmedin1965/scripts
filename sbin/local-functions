@@ -21,12 +21,42 @@ log_init()
 
 log()
 {
+
 	date="$(/bin/date "+%b %d %H:%M:%S")"
-	echo      "${date}: ${progName}: $@" >> "$screen"
-	[ -n "$logf" ] && echo      "${date}: ${progName}: $@" >> "$logf"
+	echo "${date}: ${progName}: $@" >> "$screen"
+	[ -n "$logf" ] && echo "${date}: ${progName}: $@" >> "$logf"
 	msg="${msg}${date}: ${progName}: $@
 "
 
+}
+
+mailAlias()
+{
+	local to=""
+
+	while [ $# != 0 ]
+	do
+		ifs="$IFS"
+		IFS=","
+		for m in $1
+		do
+			[ "$m" == root ] && m="$mailTo"
+
+			if [ -z "$to" ]
+			then
+				 to="$m"
+			else
+				 to="${to},$m"
+			fi
+		done
+		IFS="$ifs"
+
+		shift
+	done
+
+	[ -n "$to" ] || to="$mailTo"
+
+	echo "$to"
 }
 
 mail()
@@ -55,15 +85,8 @@ mail()
 
 		done
 
-		to="$1"
-		shift
-
-		while [ $# != 0 ]
-		do
-			to="${to},$1"
-			shift
-		done
-
+		to="$(mailAlias "$@")"
+		
 		log "mail using /usr/local/bin/sendEmail"
 		log "mail with subject=$subject, to=$to"
 		/usr/local/bin/sendEmail \

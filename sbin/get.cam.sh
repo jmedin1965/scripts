@@ -104,7 +104,7 @@ cd /home/mythtv/cams
 ) >> $cam.log
 
 
-for cam in 192.168.0.162
+for cam in 10.11.1.30
 do
 	clean_old_files "$cam/crud" >> $cam.log
 
