@@ -16,7 +16,7 @@ do_prog()
 
 	$prog 2>&1
 	EV="$?"
-	echo EV = $?
+	log "EV = $?"
 
 	return $EV
 }
@@ -31,6 +31,13 @@ check_results()
 		doMail="true"
 		log "doMail=$doMail"
 	fi
+}
+
+process_start()
+{
+
+		log "================================================"
+		log "start rocessing $1"
 }
 
 log_init
@@ -54,7 +61,7 @@ do
 	if [ -d "$repo" ]
 	then
 		repo="$(/usr/bin/dirname "$repo")"
-		log "processing repo $repo"
+		process_start "repo $repo"
 		cd "$repo"
 		results="$(do_prog "/usr/bin/git pull")"
 		log "$results"
@@ -65,7 +72,7 @@ done
 #
 # Process gitlab
 #
-log "processing gitlab-ce"
+process_start "gitlab-ce"
 if [ -f /opt/gitlab/version-manifest.txt ]
 then
 	results="$(do_prog "/usr/bin/apt-get install --dry-run gitlab-ce")"
