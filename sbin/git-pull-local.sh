@@ -87,7 +87,11 @@ fi
 
 cd "$pwd"
 
-[ "$doMail" == true ] && mail -s "$mailSubject" $mailTo <<< "$msg"
+if [ "$doMail" == true ]
+then
+	log "================================================"
+	mail -s "$mailSubject" $mailTo <<< "$msg"
+fi
 
 log "================================================"
 
