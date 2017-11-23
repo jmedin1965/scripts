@@ -18,15 +18,38 @@ log_init()
 	[ -n "$logf" ]   && log "logging to: $logd"
 }
 
-
+#
+# Log a message
+#
+# acepts string and command line arguments or from stdin
+#
+# logs to;
+#
+# log file = $logf - default no file loggimg
+# log screen = $screen - default /dev/null
+# log variable = $msg - stores all log to $mgs variable
+#
 log()
 {
+	local str
 
-	date="$(/bin/date "+%b %d %H:%M:%S")"
-	echo "${date}: ${progName}: $@" >> "$screen"
-	[ -n "$logf" ] && echo "${date}: ${progName}: $@" >> "$logf"
-	msg="${msg}${date}: ${progName}: $@
+	if [ $# == 0 ]
+	then
+		read str
+	else
+		str="$*"
+	fi
+
+	while [ -n "$str" ]
+	do
+		date="$(/bin/date "+%b %d %H:%M:%S")"
+		echo "${date}: ${progName}: $str" >> "$screen"
+		[ -n "$logf" ] && echo "${date}: ${progName}: $str" >> "$logf"
+		msg="${msg}${date}: ${progName}: $str
 "
+		str=""
+		[ $# == 0 ] && read str
+	done
 
 }
 

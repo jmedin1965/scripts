@@ -16,28 +16,31 @@ do_prog()
 
 	$prog 2>&1
 	EV="$?"
-	log "EV = $?"
+	echo "exited with value $EV"
 
 	return $EV
 }
 
 check_results()
 {
+	[ $# != 2 ] && return
+	
 	local result="$1"
 	local sucessMsg="$2"
 
 	if [ "$(/bin/fgrep -c "$sucessMsg" <<< "$result")" -eq 0 ]
 	then
 		doMail="true"
-		log "doMail=$doMail"
+		log "check_results found $sucessMsg"
 	fi
+	log "doMail=$doMail"
 }
 
 process_start()
 {
 
 		log "================================================"
-		log "start rocessing $1"
+		log "start processing $1"
 }
 
 log_init
@@ -64,7 +67,7 @@ do
 		process_start "repo $repo"
 		cd "$repo"
 		results="$(do_prog "/usr/bin/git pull")"
-		log "$results"
+		echo "$results" | log
 		check_results "$results" "Already up-to-date."
 	fi
 done
@@ -76,7 +79,7 @@ process_start "gitlab-ce"
 if [ -f /opt/gitlab/version-manifest.txt ]
 then
 	results="$(do_prog "/usr/bin/apt-get install --dry-run gitlab-ce")"
-	log "$results"
+	echo "$results" | log
 	check_results "$results" "is already the newest version."
 else
 	log "gitlab-ce: not installed on this system"
@@ -85,4 +88,6 @@ fi
 cd "$pwd"
 
 [ "$doMail" == true ] && mail -s "$mailSubject" $mailTo <<< "$msg"
+
+log "================================================"
 
