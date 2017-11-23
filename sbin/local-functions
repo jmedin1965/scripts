@@ -1,5 +1,17 @@
 #!/bin/bash
 
+#
+# Release Info
+#
+# /etc/system-release
+# IPFire 2.19 (i586) - core116
+#
+# git diff --numstat /etc/system-release
+#1       1       etc/system-release
+#
+#git diff --quiet /etc/system-release ; echo $?
+#
+
 msg=""
 logf=""
 screen="/dev/null"
