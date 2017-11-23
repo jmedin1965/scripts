@@ -1,3 +1,8 @@
 /man
 /CouchPotatoServer
 /git-repos
+/include/guacamole
+/lib/libguac*
+/lib/freerdp/guac*
+/share/man/*/guacd.*
+/sbin/guacd

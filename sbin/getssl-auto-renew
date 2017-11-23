@@ -2,18 +2,24 @@
 
 . /usr/local/sbin/local-functions
 
-
-prog="/usr/local/sbin/getssl --all --upgrade -w /etc/getssl --keep 40"
+getssl_dir="/etc/getssl"
+prog="/usr/local/sbin/getssl --all --upgrade -w $getssl_dir --keep 40"
 
 
 log_init "/var/log/getssl/renew.log"
 
+(
+	for dom in ${getssl_dir}/*
+	do
+		[ -e "${dom}/getssl.cfg" ] && echo $prog $(/usr/bin/basename "$dom") 2>&1
+	done
 
-$prog 2>&1 | (
+)  | (
 
 	hostname="$(/bin/hostname)"
 	sucessMsg="No renewals were attempted."
-	mailSubject="${prog##*/} from $(/bin/hostname)"
+	sucessMsg="certificate is valid for more than "
+	mailSubject="${prog##*/} from $hostname"
 	sleep="$(($RANDOM % 120))"
 	sleep="$(($sleep * 60))"
 
