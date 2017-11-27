@@ -1,0 +1,176 @@
+#
+# Create an RCS symlink to the archive-dir used in the dispatch-conf script
+#
+#
+# Author: Juan Medin <jmedin@jcm.dynalias.com> <juan_medin@bigfoot.com> <jmedin@joy.com>
+#
+# $Header: /usr/local/bin/RCS/mkrcs,v 1.5 2010/01/12 07:34:42 root Exp root $
+
+#
+# Some global vars
+#
+prog=$(basename $0)
+RCS_dir=RCS
+dispatch_conf_file=/etc/dispatch-conf.conf
+archive_dir=/etc/rcs-archive
+
+##
+## Read values from dispatch_conf_file
+##
+#if [ -f "$dispatch_conf_file" ]
+#then
+#	ifs="$IFS"
+#	IFS="
+#"
+#		for line in $(< $dispatch_conf_file)
+#		do
+#			case "$line" in
+#			\#*)
+#				;;
+#			archive-dir=*)
+#				archive_dir=${line#*=}
+#
+#				# make sure path does not end with a /
+#				case "$archive_dir" in
+#				*/)
+#					archive_dir="${archive_dir:0:$(expr ${#archive_dir} - 1)}"
+#					;;
+#				esac
+#				;;
+#			esac
+#		done
+#	IFS="$ifs"
+#else
+#	archive_dir=/etc/config-archive
+#	echo '***' "using default archive dir of $archive_dir"
+#fi
+
+if [ -z "$archive_dir" ]
+then
+	echo '***' "$prog: $dispatch_conf_file: could not determine archive-dir location"
+	exit 1
+fi
+
+[ -d "$archive_dir" ] || /bin/mkdir "$archive_dir"
+
+if [ $# == 0 ]
+then
+	set -- .
+fi
+
+#
+# Process the directories
+#
+for dir in "$@"
+do
+	if [ -L "$dir/$RCS_dir" ]
+	then
+		echo '***' "$prog: $dir/$RCS_dir: directory already exists and is a simbolic link"
+
+	elif [ ! -d "$dir" ]
+	then
+		echo "$prog: $dir: not a directory"
+
+	else
+		#
+		# make sure we have an absolute path to the dir, not a relative path
+		#
+		case "$dir" in
+		/*)
+			;;
+		*)
+			dir="$(pwd)/$dir"
+			;;
+		esac
+
+		#
+		# make sure we have the shortest path
+		#
+		pwd="$(pwd)"
+		if ! cd "$dir"
+		then
+			echo "$prog: $dir: failed to access directory"
+		else
+			dir="$(pwd)"
+			cd "$pwd"
+
+			#
+			# now consider each directory from the top down
+			# and create the corresponding dir in the archive_dir
+			# if it does not exist
+			#
+			ifs="$IFS"
+			IFS="/"
+			curdir=""
+			for d in $dir
+			do
+				IFS="$ifs"
+
+				if [ -n "$d" ]
+				then
+					curdir="$curdir/$d"
+					if [ ! -d "$archive_dir$curdir" ]
+					then
+						if [ -L "$curdir" ]
+						then
+							sym="$(/usr/bin/readlink "$curdir")"
+							case "$sym" in
+							/*)
+								sym="$archive_dir$sym"
+								;;
+							esac
+							/usr/bin/ln -s "$sym" "$archive_dir$curdir"
+						else
+							/bin/mkdir -p "$archive_dir$curdir"
+						fi
+					fi
+				fi
+			done
+			IFS="$ifs"
+
+			#
+			# If the corespondif dir in archive_dir did not create, we must not have permission to
+			# create this directory so just deal with RCS dir directly
+			#
+			if [ ! -d "$archive_dir$curdir" ]
+			then
+				[ ! -d "$RCS_dir" ] && mkdir "$RCS_dir"
+
+			else
+				#
+				# If the RCS dir exists and is not a symbolic link, save contents so we
+				# can convert it to a symbolic link
+				#
+				t_dir=""
+				if [ -d "$dir/$RCS_dir" ]
+				then
+					echo '***' "$dir/$RCS_dir is not a simbolic link, will convert"
+
+					t_dir="$(/bin/mktemp -d)"
+					echo '***' "created temp dir: $t_dir"
+
+					/bin/mv "$dir/$RCS_dir/"* "$t_dir"
+					echo '***' "moved contents of $dir/$RCS_dir to $t_dir"
+
+					/bin/rmdir "$dir/$RCS_dir"
+					echo '***' "removed $dir/$RCS_dir"
+				fi
+
+				#
+				# and finaly create the RCS symbolic link directory
+				#
+				/bin/ln -s "$archive_dir$dir" "$RCS_dir"
+
+				#
+				# Now move everything back if we are converting from a dir to a simbolic link
+				#
+				if [ -n "$t_dir" ]
+				then
+					/bin/mv $t_dir/* "$RCS_dir" && /bin/rmdir "$t_dir"
+					echo '***' "moved saved contents back"
+				fi
+			fi
+		fi
+	fi
+done
+

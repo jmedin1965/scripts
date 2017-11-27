@@ -1,0 +1,15 @@
+
+#
+# Global Vars
+#
+
+for server in "$@"
+do
+	echo server: $server
+	/usr/local/sbin/netapp-cluster-send-command $server \
+		"security login publickey show -username admin -index 0;security login create -user-or-group-name admin -application ssh -authmethod publickey;security login publickey create -username admin -index 0 -publickey \"$(cat /root/.ssh/id_dsa.pub)\""
+
+done
+
+exit 0
+

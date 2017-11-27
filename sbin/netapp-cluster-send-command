@@ -1,0 +1,857 @@
+#!/bin/bash
+
+
+#
+# Global Vars
+#
+
+# set debug
+debug="0"
+debug="2"
+
+# how long to sleep after executing a netapp command
+sleep="60"
+sleep="20"
+
+progName="$(/usr/bin/basename "$0")"
+
+dst_adjust="false"				# adjust start time for throttle change by 1 hours depending on DST time
+throttle="-1"					# Throttle requestes by user command line
+opt=""						# option for command
+
+sm_trottle_kbps="unknown"			# Throttle set for this job/snapmirror
+sm_cur_throttle="unknown"			# Throttle being used by this running job
+sm_rel_status="unknown"
+throttle_diff=""				# The difference between the requested throttle and the actual job Throttle
+sm_tape_session_status=""			# the status of the smtape session
+sm_sessionType=""				# the type of session we are working with. This is deduced from the destination volume format
+sm_source_path=""				# the snapmirror source path
+
+# logging related vars
+logs="/var/log/netapp"
+log="/dev/stdout"				# log messages to stdout
+log="/dev/stderr"				# log messages to stderr
+log_array=()
+stats_f_ext="csv"
+stats_f_ext="test.csv"
+
+# mail related vars
+mailAttachedFiles=()
+mailMessage=""
+mailto="jmedin@joy.com ptrezise@joy.com"
+
+volume=""
+cluster=""
+vserver=""
+session=""
+
+s_path=""
+s_volume=""
+s_cluster=""
+s_vserver=""
+s_session=""
+
+
+#
+#
+#
+log()
+{
+	local msg="$(/bin/date +"%Y/%m/%d %H:%M:%S"): $*"
+	echo -e "$msg" >> "$log"
+	log_array=("${log_array[@]}" "$msg")
+}
+
+
+debug()
+{
+	db="$1"
+	shift
+	[ "$debug" -ge "$db" ] && log "debug: $db: $*"
+}
+
+
+log_print()
+{
+	for line in "${log_array[@]}"
+	do
+		echo "$line"
+	done
+}
+
+
+send_stats_email()
+{
+	local opts=()
+	local subject="$1"
+	local o
+	local status="ok"
+
+	shift
+
+	if [ $# -gt 0 ]
+	then
+
+		if [ "${#mailAttachedFiles[@]}" -gt 0 ]
+		then
+			opts=("${opts[@]}" "-a")
+			for o in "${mailAttachedFiles[@]}"
+			do
+				if [ -e "$o" ]
+				then
+					log "  attached file: $o"
+					opts=("${opts[@]}" "$o")
+				else
+					log "  Error: file does not exist: $o"
+					status="error"
+				fi
+			done 
+			opts=("${opts[@]}" "--")
+		fi
+
+		log "status email sening to: $*"
+
+		subject="$status: $progName: $subject"
+		opts=("-s" "$subject" "${opts[@]}")
+
+		log_print | /usr/bin/mutt "${opts[@]}" "$@"
+		debug 2 /usr/bin/mutt "${opts[@]}" "$@"
+		mailAttachedFiles=()
+	else
+		log "status email NOT sening to: $@"
+	fi
+}
+
+
+#
+# Print program usage
+#
+usage()
+{
+	(
+		if [ $# -gt 0 ]
+		then
+			echo
+			echo -e "$@"
+			echo
+		fi
+		echo "\
+Usage: $progName "$0") [command option]...
+
+command options:
+	--save-stats volume|smtape-session...
+	--email-stats volume...
+	--throttle kB/s volume...
+	--cluster server
+	--email-if-active volume...		- send an email if session is active (takes throttle into consideration)
+						  a session is not idle if the session throttle matches or is below the stated
+						  --throttle setting
+	--take-snapshot-if-idle label volume...	- take a snapshot if snapmirror is idle
+	--dst-adjust				- adjust start time for throttle change by 1 hours depending on DST time
+	--raw-cmd \"commands\"			- send a raw command to the stated cluster
+	--help - print usage and exit
+where:
+	kB/s 	- throttle in kB/s, 0 = unlimited, < 0 = do not change
+	volume	- the destination volume in the form cluster://vserver/volume or vserver:volume
+		  Note:
+		        - volume is case sensitive, so check the case using the cluster command line
+			- if any of cluster, vserver or volume are missing, previous settings are used 
+	smtape-session - save stats for the session stated. Must have supplied a cluster first with --cluster
+	          or in the form cluster://session-number
+	label   - the label to tag the snapshot with
+	server  - the cluster server to send the command to
+"
+
+		# if we are not running on a tty (i.e. running from cron)	
+		if ! /usr/bin/tty -s
+		then
+			send_stats_email "$*" $mailto
+		fi
+	) >> "$log"
+
+	exit 1
+}
+
+
+#
+# Send cluster command to server
+#
+# usage: send_command <cluster server> <command>...
+#
+send_command()
+{
+        local server="$1"
+	local EV="0"
+
+        shift
+
+        /usr/bin/ssh -l admin "$server" "$@" 2>&1
+
+	EV=$?
+
+	return $EV
+}
+
+
+#
+# get_dest_info - split a destionation into cluster, server, and volume
+#
+# ags
+#
+#	$1 - destination to split
+#	$2 - returned vars are prefixed with this value
+#
+# vars returned are;
+#
+#	${2}volume
+#	${2}vserver
+#	${2}stats_f
+#	${2}session
+#	${2}cluster
+#
+get_dest_info()
+{
+	local v
+	local s
+	local var_pf="$2"	# returned vars are prefixed with this value
+	local l_volume
+	local l_vserver
+	local l_stats_f
+	local l_session
+	local l_cluster
+
+	eval l_cluster=\"\$${var_pf}cluster\"
+
+	log "get_dest_info for: $1"
+
+	local ifs="$IFS"
+	IFS=":"
+	set -- $1
+	IFS="$ifs"
+
+	[ $# -gt 2 ] && usage "Volume format contains more that one \":\""
+
+	case "$2" in
+	"//"*)
+		l_cluster="$1"
+		s="${2#//}"
+		v="$s"
+		s="${s%%/*}"
+		;;
+	*)
+		v="$1/$2"
+		;;
+	esac
+	
+	debug 2 "v=$v"
+
+	IFS="/"
+	set -- $v
+	IFS="$ifs"
+	if [ -n "$1" ]
+	then
+		if [ -z "${1//[0-9]/}" ]	# if only contains number, then must be an smtape session
+		then
+			l_session="$1"
+			sm_sessionType="smtape"
+		else
+			l_vserver="$1"	
+			sm_sessionType="snapmirror"
+		fi
+	fi
+
+	[ -n "$2" ] && l_volume="$2"
+
+	if [ -n "$l_cluster" -a -n "$l_volume" -a -n "$l_vserver" ] || [ -n "$l_cluster" -a -n "$l_session" ]
+	then
+		l_stats_f="$logs/$l_cluster-$l_vserver$l_session-$l_volume.$stats_f_ext"
+	else
+		usage "Error: not all informaion was supplied"
+	fi
+
+	eval ${var_pf}volume=\"$l_volume\"
+	eval ${var_pf}vserver=\"$l_vserver\"
+	eval ${var_pf}stats_f=\"$stats_f\"
+	eval ${var_pf}session=\"$l_session\"
+	eval ${var_pf}cluster=\"$l_cluster\"
+	eval ${var_pf}stats_f=\"$l_stats_f\"
+
+	log "  ${var_pf}cluster = $l_cluster"
+	if [ "$sm_sessionType" == "smtape" ]
+	then
+		log "  ${var_pf}session = $l_session"
+	else
+		log "  ${var_pf}volume  = $l_volume"
+		log "  ${var_pf}vserver = $l_vserver"
+	fi
+	log "  ${var_pf}stats_f = $l_stats_f"
+}
+
+
+snapshot_create()
+{
+	local snap_name="${snap_label}.$(/bin/date +"%Y-%m-%d_%H%M")"
+	local ev
+	local SC_CMD
+
+	log "start snapshot_create"
+
+	if [ -n "$s_cluster" ] && [ -n "$s_volume" ] && [ -n "$s_vserver" ] && [ -n "$snap_label" ]
+	then
+		debug 2 "send_command $s_cluster snapshot create -vserver $s_vserver -volume $s_volume -snapshot $snap_name -snapmirror-label $snap_label"
+
+		SC_CMD="$(send_command $s_cluster snapshot create -vserver $s_vserver -volume $s_volume -snapshot "$snap_name" -snapmirror-label "$snap_label")"
+		ev=$?
+	else
+		usage "missing information to run netapp command"
+	fi
+
+	if [ "$ev" != 0 ]
+	then
+		log "ev=$ev: send_command failed: $s_cluster snapshot create -vserver $s_vserver -volume $s_volume -snapshot $snap_name -snapmirror-label $snap_label"
+	fi
+
+	log "===================="
+	log "${SC_CMD}"
+	log "===================="
+		
+	if [ "$ev" != 0 ]
+	then
+		send_stats_email "create snapshot failed" $mailto
+	fi
+}
+
+#
+# process_netapp_show - process the output of a netapp show command
+#
+get_source_cluster()
+{
+	local read_it="0"
+	local SM_SHOW
+	local ev
+
+	s_cluster=""
+
+	log "start get_source_cluster"
+
+	if [ -n "$cluster" ] && [ -n "$volume" ] && [ -n "$vserver" ]
+	then
+		debug 2 "send_command $cluster snapmirror show -destination-path ${vserver}:${volume} -source-cluster * -fields source-cluster"
+
+		#
+		# This is done because the reading of input from a pipe looses access to variables set in this function
+		#
+		# http://stackoverflow.com/questions/19570413/bash-how-to-pipe-input-to-while-loop-and-preserve-variables-after-loop-ends
+		#
+		SM_SHOW="$(send_command $cluster snapmirror show -destination-path ${vserver}:${volume} -source-cluster \* -fields source-cluster)"
+		ev=$?
+	else
+		usage "missing information to run netapp command"
+	fi
+
+	if [ "$ev" != 0 ]
+	then
+		log "ev=$ev: send_command failed: $cluster snapmirror show -destination-path ${vserver}:${volume} -source-cluster * -fields source-cluster"
+		log "===================="
+		log "${SM_SHOW}"
+		log "===================="
+        else
+		while read line
+		do
+			line="$(echo "$line" | /bin/sed 's/[\r\n]//')"
+			set -- $line
+
+			if [ "$read_it" == "1" ]
+			then
+				s_path="$1"
+				s_cluster="$2"
+				read_it="0"
+			fi
+			[ "$2" == "--------------" ] && read_it="1"
+
+		done <<< "$SM_SHOW"
+
+	fi
+}
+
+
+#
+# process_netapp_show - process the output of a netapp show command
+#
+process_netapp_show()
+{
+	local saveStats="$1"
+	local header="time,cluster"
+	local data="$(/bin/date +"%Y/%m/%d %H:%M:%S"),$cluster"
+	local ev
+	local d h
+	local SM_SHOW
+	local sm_sessionType=""
+
+	sm_cur_throttle="unknown"
+	sm_trottle_kbps="unknown"
+	sm_rel_status="unknown"
+	sm_tape_session_status=""
+
+	log "start process_snapmirror_show"
+
+	if [ -n "$cluster" ] && [ -n "$volume" ] && [ -n "$vserver" ] && [ -n "$stats_f" ] 
+	then
+		debug 2 "send_command $cluster snapmirror show -destination-path ${vserver}:${volume}"
+
+		#
+		# This is done because the reading of input from a pipe looses access to variables set in this function
+		#
+		# http://stackoverflow.com/questions/19570413/bash-how-to-pipe-input-to-while-loop-and-preserve-variables-after-loop-ends
+		#
+		SM_SHOW="$(send_command $cluster snapmirror show -destination-path ${vserver}:${volume})"
+		ev=$?
+		sm_sessionType="snapmirror"
+	elif [ -n "$cluster" ] && [ -n "$session" ] && [ -n "$stats_f" ] 
+	then
+		debug 2 "send_command $cluster system smtape status show $session"
+
+		SM_SHOW="$(send_command $cluster system smtape status show $session)"
+		ev=$?
+		sm_sessionType="smtape"
+	else
+		usage "missing information to run netapp command"
+	fi
+
+	if [ "$ev" != 0 ]
+	then
+		log "ev=$ev: send_command failed: $cluster snapmirror show -destination-path ${vserver}:${volume}"
+		log "===================="
+		log "${SM_SHOW}"
+		log "===================="
+        else
+		while read line
+		do
+			line="$(echo "$line" | /bin/sed 's/[\r\n]//')"
+
+			h="$(echo "$line" | /bin/sed 's/:.*//')"
+			d="$(echo "$line" | /bin/sed 's/.*: //')"
+
+			case "$h" in
+			"Current Throttle")
+				sm_cur_throttle="$d"
+				[ "$sm_cur_throttle" == unlimited ] || [ "$sm_cur_throttle" == - ] && sm_cur_throttle="0"
+				;;
+			"Throttle (KB/sec)")
+				sm_trottle_kbps="$d"
+				[ "$sm_trottle_kbps" == unlimited ] && sm_trottle_kbps="0"
+				;;
+			"Relationship Status")
+				sm_rel_status="$d"
+				;;
+			"Session Status")
+				sm_tape_session_status="$d"
+				;;
+			"Source Path")
+				sm_source_path="$d"
+				;;
+			esac
+
+			if [ -n "$h" ]
+			then
+				header="$header,$h"
+				data="$data,$d"
+			fi
+
+		done <<< "$SM_SHOW"
+
+
+		if [ "$sm_sessionType" == "smtape" ]
+		then
+			log " SMTape session Status = $sm_tape_session_status"
+		else
+			log " throttle requested    = $throttle"
+			log " Current Throttle      = $sm_cur_throttle"
+			log " Throttle (KB/sec)     = $sm_trottle_kbps"
+			log " Relationship Status   = $sm_rel_status"
+		fi
+
+
+		if [ "$sm_tape_session_status" == COMPLETED ] || [ "$sm_tape_session_status" == FAILED ]
+		then
+			send_stats_email "$sm_tape_session_status: smtape session $session on cluster $cluster" $mailto
+		fi
+
+
+
+		if [ ! "$saveStats" == 0 ]
+		then
+			if [ ! -e "$stats_f" ]
+			then
+				debug 2 "write header to log: $stats_f"
+				echo "$header" >> "$stats_f"
+			fi
+			debug 2 "write data to log: $stats_f"
+			echo "$data" >> "$stats_f"
+		fi
+	fi
+
+	debug 2 "end process_snapmirror_show"
+}
+
+
+get_throttle_difference()
+{
+	local cur_throttle="$sm_cur_throttle"
+	throttle_diff="0"
+
+
+	if [ "$sm_rel_status" == "Idle" ]
+	then
+		debug 2 "snapmirror is Idle, Current Throttle is always 0 when Idle. Using Throttle (KB/sec) instead"
+		# Since Current Throttle is 0, we need to use Throttle in our calculations 
+		cur_throttle="$sm_trottle_kbps"
+	fi
+
+	if [ "$throttle" -lt 0 ]
+	then
+		log "throttle=$throttle: no change needed"
+
+	elif [ "$throttle" == unknown -o "$sm_cur_throttle" == unknown -o "$sm_trottle_kbps" = unknown ]
+	then
+		send_stats_email "unable to determine current throttle values on cluster for vol $volume" $mailto
+
+	elif [ "$throttle" == 0 -a "$sm_cur_throttle" != 0 ] || [ "$throttle" != 0 -a "$cur_throttle" == 0 ]
+	then
+		debug 2 "throttle is or will be unlimited"
+		# if we want unlimited and are not unlimited or if we don't want unlimited and have unlimited throttle
+		# then pretend that the difference is 10 (or a large number) so we force a change
+		throttle_diff="10"
+	else
+		throttle_diff="$(( $cur_throttle - $throttle ))"
+		[ $throttle_diff -lt 0 ] && throttle_diff="$(( $throttle_diff * -1 ))"
+		debug 2 "throttle difference = $throttle_diff"
+	fi
+
+	# a difference of 4 or less is considered a difference of 0
+	[ "$throttle_diff" -le 4 ] && throttle_diff="0"
+}
+
+
+throttle_snapmirror()
+{
+	local max="2"
+	local count="1"
+	local s="$sleep"
+
+	log "start throttle_snapmirror"
+
+	throttle_diff="100"
+	while [ "$count" -le "$max" ] && [ "$throttle_diff" -gt 4 ]
+	do
+		log "throttle change attempt $count of $max"
+
+		process_netapp_show 0
+
+		get_throttle_difference
+
+		log " throttle requested  = $throttle"
+		log " Current Throttle    = $sm_cur_throttle"
+		log " Throttle (KB/sec)   = $sm_trottle_kbps"
+		log " Relationship Status = $sm_rel_status"
+		log " Throttle Difference = $throttle_diff"
+
+		if [ "$throttle_diff" -gt 0 ]
+		then
+			if [ "$sm_rel_status" == Transferring ]
+			then
+				send_command $cluster snapmirror abort $vserver:$volume
+				debug 1 "abort snapmirror, then sleep for $sleep seconds"
+				/bin/sleep $s
+			fi
+
+			send_command $cluster snapmirror modify -destination-path $vserver:$volume -throttle $throttle
+
+			if [ "$sm_rel_status" == Transferring ]
+			then
+				send_command $cluster snapmirror update $vserver:$volume
+				debug 1 "update snapmirror, then sleep for $sleep seconds"
+				/bin/sleep $s
+			fi
+
+		fi
+
+		count=$(($count + 1))
+		s=$(($sleep * $count))
+	done
+
+
+	if [ "$throttle_diff" -gt 4 ]
+	then
+		send_stats_email "Error: failed to change throttle" $mailto
+	fi
+}
+
+
+adjust_for_dst()
+{
+	local hour="$(/bin/date +"%H")"	
+	local TZ_Abrev="$(/bin/date +"%Z")"
+
+	if [ "$TZ_Abrev" == "AEDT" ]
+	then
+		if [ "$hour" -gt "12" ]
+		then
+			log "In DST and it's after 12, so we will sleep for an hour"
+			/bin/sleep 3600
+		fi
+	fi
+}
+
+
+main()
+{
+	local arg
+
+	[ $# == 0 ] && usage
+
+	debug 1 "command line processing starting"
+
+	while [ $# -gt 0 ]
+	do
+		arg="$1"
+		shift
+		debug 1 "Process: $arg"
+#	debug 1 "Throttle requested = $throttle"
+
+		case "$arg" in
+		"--dst-adjust")		dst_adjust="true"
+					adjust_for_dst;;
+		"--save-stats")		cur_cmd="save-stats";;
+		"--raw-cmd")		cur_cmd="raw-cmd";;
+		"--email-stats")	
+					cur_cmd="email-stats"
+					do_send_stats_email="1"
+					;;
+		"--throttle")		cur_cmd="throttle"
+					throttle="$1"
+					/usr/bin/expr "$1" + 0 > /dev/null 2>&1 
+					[ $? == 2 ] && usage "$1: throttle must be a number."
+					shift
+					;;
+		"--cluster")		if [ $# -gt 0 ]
+					then
+						cluster="$1"
+						shift
+						log "cluster = $cluster"
+					else
+						usage "--cluster: Please specify a cluster server for this option."
+					fi
+					;;
+		"--take-snapshot-if-idle")
+					cur_cmd="take-snapshot-if-idle"
+					snap_label="$1"
+					shift
+					;;
+		"--replication.throttle.enable")
+					cur_cmd="replication.throttle.enable"
+					opt="$1"
+					case "$opt" in
+					on)	;;
+					off)	;;
+					*)	usage "required option: --replication.throttle.enable <on|off> filer...";;
+					esac
+					;;
+		"--replication.throttle.incoming.max_kbs")
+					cur_cmd="replication.throttle.incoming.max_kbs"
+					/usr/bin/expr "$1" + 0 > /dev/null 2>&1 
+					[ $? == 2 ] && usage "$1: throttle must be a number."
+					opt="$1"
+					;;
+		"--replication.throttle.outgoing.max_kbs")
+					cur_cmd="replication.throttle.outgoing.max_kbs"
+					/usr/bin/expr "$1" + 0 > /dev/null 2>&1 
+					[ $? == 2 ] && usage "$1: throttle must be a number."
+					opt="$1"
+					;;
+		"--email-if-active")	cur_cmd="email-if-active";;
+		"--email-if-throtle-enable")
+					cur_cmd="email-if-throtle-enable"
+					opt="$(echo "$1" | /usr/bin/tr '[:upper:]' '[:lower:]')"
+					case "$opt" in
+					on)	;;
+					off)	;;
+					*)	usage "required option: --email-if-throtle-enable <on|off> filer...";;
+					esac
+					;;
+		"--help")		usage;;
+		"--"*)			usage "$arg: unknown option";;
+		*)			
+		################################# not a command, so process the current command #################################
+					case "$cur_cmd" in
+					"raw-cmd")	debug 2 "--raw-cmd $cluster $arg"
+							SM_SHOW="$(send_command $cluster $arg)"
+							ev=$?
+							log "command failed"
+							log "$SM_SHOW"
+							;;
+							
+					"throttle")	debug 2 "--throttle $throttle $arg"
+							get_dest_info "$arg"
+							process_netapp_show 0
+							throttle_snapmirror
+							;;
+					"save-stats")	debug 2 "--save-stats $arg"
+							get_dest_info "$arg"
+							if [ -n "$stats_f" ]
+							then
+								process_netapp_show 1
+							else
+								send_stats_email "--save-stats: ${cluster}://${vserver}/${volume}: must have valid cluster, vserver, and volume" $mailto
+							fi
+							;;
+					"email-stats")	debug 2 "--email-stats $arg"
+							get_dest_info "$arg"
+							if [ -z "$stats_f" ]
+							then
+								send_stats_email "--email-stats: ${cluster}://${vserver}/${volume}: must have valid cluster, vserver, and volume" $mailto
+
+							else
+								log "email-stats: file added to attachment for sending: $stats_f"
+								mailAttachedFiles=("${mailAttachedFiles[@]}" "$stats_f")
+							fi
+							;;
+					"take-snapshot-if-idle")
+							get_dest_info "$arg"
+							process_netapp_show 0
+							if [ "$sm_rel_status" == "Idle" ]
+							then
+								# It's Idle, so lets do an update just in case and then wait a little bit
+								send_command $cluster snapmirror update $vserver:$volume
+								debug 1 "update snapmirror, then sleep for $sleep seconds"
+								/bin/sleep $s
+								if [ "$sm_rel_status" == "Idle" ]
+								then
+									get_source_cluster
+									get_dest_info "$s_path" s_
+									snapshot_create
+									send_stats_email "$arg: snapshot taken" $mailto
+								else
+									send_stats_email "was idle, but now is not: snapshot not taken" $mailto
+								fi
+							else
+								send_stats_email "not idle: snapshot not taken" $mailto
+							fi
+							
+							;;
+					"email-if-active")
+							get_dest_info "$arg"
+							process_netapp_show 0
+							if [ "$sm_tape_session_status" == "ACTIVE" -o "$sm_rel_status" == "Transferring" ]
+							then
+								if	[ "$sm_cur_throttle" == "unknown" ] || \
+									[ "$sm_cur_throttle" == 0 ] || \
+									[ "$throttle" -lt 0 ] || \
+									[ "$sm_cur_throttle" -gt $(( $throttle + 2 )) ]
+								then
+									send_stats_email "session is still $sm_tape_session_status$sm_rel_status" $mailto
+								else
+									log "session is active, but being throttled. No email has been sent"
+								fi
+							else
+								log "session is not active."
+							fi
+							;;
+					"email-if-throtle-enable")
+							if [ -n "$1" ]
+							then
+								debug 2 "--email-if-throtle-enable $opt $1"
+                                                        	SM_SHOW="$(send_command $1 options -option-name replication.throttle.enable)"
+                                                        	ev=$?
+echo "$SM_SHOW" | ( 
+local found="false"
+while read line
+do
+	set -- $line
+	if [ "$1" == "replication.throttle.enable" ]
+	then
+		echo a=\"$1\" b=\"$2\" $opt
+		found="true"
+	fi
+done
+echo found=$found
+)
+							fi
+							;;
+					"replication.throttle.enable")
+							if [ -n "$1" ]
+							then
+								debug 2 "--replication.throttle.enable $opt $1"
+                                                        	SM_SHOW="$(send_command $1 options -option-name replication.throttle.enable $opt)"
+                                                        	ev=$?
+							fi
+							;;
+					"replication.throttle.incoming.max_kbs")
+							if [ -n "$1" ]
+							then
+								debug 2 "--replication.throttle.incoming.max_kbs $opt $1"
+                                                        	SM_SHOW="$(send_command $1 options -option-name replication.throttle.incoming.max_kbs $opt)"
+                                                        	ev=$?
+							fi
+							;;
+					"replication.throttle.outgoing.max_kbs")
+							if [ -n "$1" ]
+							then
+								debug 2 "--replication.throttle.outgoing.max_kbs $opt $1"
+echo "send_command $1 options -option-name replication.throttle.outgoing.max_kbs $opt"
+                                                        	SM_SHOW="$(send_command $1 options -option-name replication.throttle.outgoing.max_kbs $opt)"
+echo SM_SHOW=$SM_SHOW
+                                                        	ev=$?
+							fi
+							;;
+					*)		usage "$cur_cmd: $arg: no valid command option to process volume found";;
+					esac
+		################################# done processing command #######################################################
+		esac
+	done
+}
+
+#
+# Script starts here
+#
+
+
+#
+# Change some stuff if we are not getting input from a terminal
+# ( i.e. are not being run from cron )
+#
+if ! /usr/bin/tty -s
+then
+	tty="0"
+	debug="0"
+	log="$logs/$(/usr/bin/basename $0).log"
+	exec >> "$log" 2>&1
+fi
+
+#
+# Change some stuff depending on debug level
+#
+if [ "$debug" == 0 ]
+then
+	stats_f_ext="csv"
+else
+	mailto="jmedin@joy.com"
+fi
+
+[ "$debug" -gt 2 ] && set -x
+
+log "starting"
+log "command line: $*"
+
+
+cur_cmd=""			# the current command being processed
+do_send_stats_email="0"		# do we need to send stats email?
+
+main "$@"
+
+[ "$do_send_stats_email" != 0 ] && send_stats_email "netapp stats" $mailto
+
+log "finished"
+
+exit 0
+
