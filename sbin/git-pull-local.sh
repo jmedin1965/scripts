@@ -31,7 +31,8 @@ check_results()
 	if [ "$(/bin/fgrep -c "$sucessMsg" <<< "$result")" -eq 0 ]
 	then
 		doMail="true"
-		log "check_results found $sucessMsg"
+		log "check_results did not find $sucessMsg in;"
+		log <<< "$result"
 	fi
 	log "doMail=$doMail"
 }
