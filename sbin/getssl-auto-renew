@@ -3,7 +3,8 @@
 . /usr/local/sbin/local-functions
 
 getssl_dir="/etc/getssl"
-prog="/usr/local/sbin/getssl --all --upgrade -w $getssl_dir --keep 40"
+#prog="/usr/local/sbin/getssl --all --upgrade -w $getssl_dir --keep 40"
+prog="/usr/local/sbin/getssl --upgrade -w $getssl_dir --keep 40"
 
 
 log_init "/var/log/getssl/renew.log"
@@ -11,7 +12,7 @@ log_init "/var/log/getssl/renew.log"
 (
 	for dom in ${getssl_dir}/*
 	do
-		[ -e "${dom}/getssl.cfg" ] && echo $prog $(/usr/bin/basename "$dom") 2>&1
+		[ -e "${dom}/getssl.cfg" ] && $prog $(/usr/bin/basename "$dom") 2>&1
 	done
 
 )  | (
