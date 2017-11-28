@@ -734,7 +734,6 @@ main()
 							;;
 					"save-stats")	debug 2 "--save-stats $arg"
 							get_dest_info "$arg"
-echo cluster = $cluster
 							if [ -n "$stats_f" ]
 							then
 								process_netapp_show 1
