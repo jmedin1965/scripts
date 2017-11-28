@@ -15,7 +15,6 @@ sleep="20"
 
 progName="$(/usr/bin/basename "$0")"
 
-dst_adjust="false"				# adjust start time for throttle change by 1 hours depending on DST time
 throttle="-1"					# Throttle requestes by user command line
 opt=""						# option for command
 
@@ -322,7 +321,7 @@ snapshot_create()
 }
 
 #
-# process_netapp_show - process the output of a netapp show command
+# get_source_cluster - process the output of a netapp show command
 #
 get_source_cluster()
 {
@@ -372,6 +371,32 @@ get_source_cluster()
 		done <<< "$SM_SHOW"
 
 	fi
+}
+
+
+#
+# get_option - get the value of a cluster option
+#
+# args:
+#
+#	cluster - the cluster to query
+#	option - the option whose value we require
+#
+get_option()
+{
+	local line
+	local c="$1"
+	local o="$2"
+
+	SM_SHOW="$(send_command $c options -option-name $o)"
+        ev=$?
+
+	while read line
+	do
+		set -- $line
+		[ "$1" == "$o" ] && echo "$2"
+
+	done <<< "$SM_SHOW"
 }
 
 
@@ -481,6 +506,12 @@ process_netapp_show()
 
 		if [ ! "$saveStats" == 0 ]
 		then
+			if [ "$sm_sessionType" == snapmirror ]
+			then
+				header="$header,replication.throttle.enable,replication.throttle.incoming.max_kbs,replication.throttle.outgoing.max_kbs"
+				data="$data,$(get_option "$cluster" replication.throttle.enable),$(get_option "$cluster" replication.throttle.incoming.max_kbs),$(get_option "$cluster" replication.throttle.outgoing.max_kbs),"
+			fi
+
 			if [ ! -e "$stats_f" ]
 			then
 				debug 2 "write header to log: $stats_f"
@@ -588,18 +619,15 @@ throttle_snapmirror()
 }
 
 
-adjust_for_dst()
+sleep_if_tz_abrev_matches()
 {
-	local hour="$(/bin/date +"%H")"	
 	local TZ_Abrev="$(/bin/date +"%Z")"
 
-	if [ "$TZ_Abrev" == "AEDT" ]
+	log "Check if $TZ_Abrev = $1."
+	if [ "$TZ_Abrev" == "$1" ]
 	then
-		if [ "$hour" -gt "12" ]
-		then
-			log "In DST and it's after 12, so we will sleep for an hour"
-			/bin/sleep 3600
-		fi
+		log "in $1, so we will sleep for an hour"
+		/bin/sleep 3600
 	fi
 }
 
@@ -620,8 +648,11 @@ main()
 #	debug 1 "Throttle requested = $throttle"
 
 		case "$arg" in
-		"--dst-adjust")		dst_adjust="true"
-					adjust_for_dst;;
+		"--dst-adjust")		adjust_for_dst "$1"
+					shift;;
+		"--sleep-if-tz-abrev-matches")
+					sleep_if_tz_abrev_matches "$1"
+					shift;;
 		"--save-stats")		cur_cmd="save-stats";;
 		"--raw-cmd")		cur_cmd="raw-cmd";;
 		"--email-stats")	
@@ -650,39 +681,44 @@ main()
 					;;
 		"--replication.throttle.enable")
 					cur_cmd="replication.throttle.enable"
-					opt="$1"
-					case "$opt" in
+					replication_throttle="$1"
+					case "$1" in
 					on)	;;
 					off)	;;
 					*)	usage "required option: --replication.throttle.enable <on|off> filer...";;
 					esac
+					shift
 					;;
 		"--replication.throttle.incoming.max_kbs")
 					cur_cmd="replication.throttle.incoming.max_kbs"
 					/usr/bin/expr "$1" + 0 > /dev/null 2>&1 
 					[ $? == 2 ] && usage "$1: throttle must be a number."
-					opt="$1"
+					replication_throttle="$1"
+					shift
 					;;
 		"--replication.throttle.outgoing.max_kbs")
 					cur_cmd="replication.throttle.outgoing.max_kbs"
 					/usr/bin/expr "$1" + 0 > /dev/null 2>&1 
 					[ $? == 2 ] && usage "$1: throttle must be a number."
-					opt="$1"
+					replication_throttle="$1"
+					shift
 					;;
 		"--email-if-active")	cur_cmd="email-if-active";;
 		"--email-if-throtle-enable")
 					cur_cmd="email-if-throtle-enable"
-					opt="$(echo "$1" | /usr/bin/tr '[:upper:]' '[:lower:]')"
-					case "$opt" in
+					replication_throttle="$(echo "$1" | /usr/bin/tr '[:upper:]' '[:lower:]')"
+					case "$1" in
 					on)	;;
 					off)	;;
 					*)	usage "required option: --email-if-throtle-enable <on|off> filer...";;
 					esac
+					shift
 					;;
 		"--help")		usage;;
 		"--"*)			usage "$arg: unknown option";;
 		*)			
 		################################# not a command, so process the current command #################################
+					debug 2 "not a command, process $cur_cmd: arg=$arg, 1=$1"
 					case "$cur_cmd" in
 					"raw-cmd")	debug 2 "--raw-cmd $cluster $arg"
 							SM_SHOW="$(send_command $cluster $arg)"
@@ -698,6 +734,7 @@ main()
 							;;
 					"save-stats")	debug 2 "--save-stats $arg"
 							get_dest_info "$arg"
+echo cluster = $cluster
 							if [ -n "$stats_f" ]
 							then
 								process_netapp_show 1
@@ -758,49 +795,38 @@ main()
 							fi
 							;;
 					"email-if-throtle-enable")
-							if [ -n "$1" ]
+							if [ -n "$arg" ]
 							then
-								debug 2 "--email-if-throtle-enable $opt $1"
-                                                        	SM_SHOW="$(send_command $1 options -option-name replication.throttle.enable)"
+								debug 2 "--email-if-throtle-enable $replication_throttle $arg"
+                                                        	SM_SHOW="$(send_command $arg options -option-name replication.throttle.enable)"
                                                         	ev=$?
-echo "$SM_SHOW" | ( 
-local found="false"
-while read line
-do
-	set -- $line
-	if [ "$1" == "replication.throttle.enable" ]
-	then
-		echo a=\"$1\" b=\"$2\" $opt
-		found="true"
-	fi
-done
-echo found=$found
-)
+								if [ "$(get_option "$arg" replication.throttle.enable)" == "$replication_throttle" ]
+								then
+									send_stats_email "replication.throttle.enable for $arg is still $replication_throttle" $mailto
+								fi
 							fi
 							;;
 					"replication.throttle.enable")
-							if [ -n "$1" ]
+							if [ -n "$arg" ]
 							then
-								debug 2 "--replication.throttle.enable $opt $1"
-                                                        	SM_SHOW="$(send_command $1 options -option-name replication.throttle.enable $opt)"
+								debug 2 "--replication.throttle.enable $replication_throttle $arg"
+                                                        	SM_SHOW="$(send_command $arg options -option-name replication.throttle.enable $replication_throttle)"
                                                         	ev=$?
 							fi
 							;;
 					"replication.throttle.incoming.max_kbs")
-							if [ -n "$1" ]
+							if [ -n "$arg" ]
 							then
-								debug 2 "--replication.throttle.incoming.max_kbs $opt $1"
-                                                        	SM_SHOW="$(send_command $1 options -option-name replication.throttle.incoming.max_kbs $opt)"
+								debug 2 "--replication.throttle.incoming.max_kbs $replication_throttle $arg"
+                                                        	SM_SHOW="$(send_command $arg options -option-name replication.throttle.incoming.max_kbs $replication_throttle)"
                                                         	ev=$?
 							fi
 							;;
 					"replication.throttle.outgoing.max_kbs")
-							if [ -n "$1" ]
+							if [ -n "$arg" ]
 							then
-								debug 2 "--replication.throttle.outgoing.max_kbs $opt $1"
-echo "send_command $1 options -option-name replication.throttle.outgoing.max_kbs $opt"
-                                                        	SM_SHOW="$(send_command $1 options -option-name replication.throttle.outgoing.max_kbs $opt)"
-echo SM_SHOW=$SM_SHOW
+								debug 2 "--replication.throttle.outgoing.max_kbs $replication_throttle $arg"
+                                                        	SM_SHOW="$(send_command $arg options -option-name replication.throttle.outgoing.max_kbs $replication_throttle)"
                                                         	ev=$?
 							fi
 							;;
