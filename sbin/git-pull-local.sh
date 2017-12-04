@@ -31,10 +31,14 @@ check_results()
 	if [ "$(/bin/fgrep -c "$sucessMsg" <<< "$result")" -eq 0 ]
 	then
 		doMail="true"
-		log "check_results did not find $sucessMsg in;"
+		log "check_results did not find \"$sucessMsg\" in;"
+		log "-----"
 		log <<< "$result"
+		log "-----"
+		log "doMail=true"
+	else
+		log "doMail=false"
 	fi
-	log "doMail=$doMail"
 }
 
 process_start()
@@ -88,11 +92,10 @@ fi
 
 cd "$pwd"
 
+log "================================================"
+log "check if we need to mail: doMail=$doMail"
 if [ "$doMail" == true ]
 then
-	log "================================================"
 	mail -s "$mailSubject" $mailTo <<< "$msg"
 fi
-
-log "================================================"
 

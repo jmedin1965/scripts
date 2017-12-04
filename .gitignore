@@ -1,8 +1,33 @@
 /man
 /CouchPotatoServer
 /git-repos
+.nfs00000000000*
+
+# guacamole
 /include/guacamole
 /lib/libguac*
 /lib/freerdp/guac*
 /share/man/*/guacd.*
 /sbin/guacd
+
+# freeradius
+/etc/raddb
+/bin/rad*
+/bin/atomic_queue_test
+/bin/channel_test
+/bin/control_test
+/bin/dhcpclient
+/bin/message_set_test
+/bin/ring_buffer_test
+/bin/schedule_test
+/bin/smbencrypt
+/bin/unit_test_attribute
+/bin/unit_test_map
+/bin/worker_test
+/include/freeradius
+/lib/libfreeradius*
+/lib/proto_*
+/lib/freerdp
+/lib/rlm_*
+
+
