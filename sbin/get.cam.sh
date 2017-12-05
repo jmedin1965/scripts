@@ -38,14 +38,15 @@ get_file()
 
 	action="skip"
 
+	attempt="1"
 	while :
 	do
 
-		echo -n "$file, size on sd: $sd_size kb, size: $size kb - "  >> $cam.log 
+		log "attempt=$attempt$file, size on sd: $sd_size kb, size: $size kb - "
 
-		if [ "$size" == "$sd_size" ]
+		if [ "$size" == "$sd_size" ] || [ "$action" == failed ]
 		then
-			echo "$action ${size} kb"  >> $cam.log 
+			log "attempt=$attempt: $file, $action ${size} kb" 
 			return
 		else
 			[ "$action" == got ] && action="retry"
@@ -59,8 +60,12 @@ get_file()
 				size=$(/usr/bin/stat --printf=%s "$file")
 				size=$(/usr/bin/expr $size / 1024 )
 			fi
-			echo "$action ${size} kb"  >> $cam.log 
+
+			log "$action ${size} kb"
 		fi
+
+		attempt=$((attempt + 1))
+		[ "$attempt" == 30 ] && action="failed"
 
 		sleep 5
 	done
@@ -73,6 +78,8 @@ clean_old_files()
 	tzise="0"
 	count="0"
 	del="0"
+
+	log "clean_old_log_files starting in: $dir"
 
 	if [ -d "$dir" ]
 	then
@@ -89,24 +96,30 @@ clean_old_files()
 					del="1"
 					/bin/rm -f "$file" 
 
-					echo clean: $file $size $tsize $count
+					log clean: $file $size $tsize $count
 				fi
 			fi
 		done
 	fi
 }
 
-cd /home/mythtv/cams
+log()
+{
+	echo "$(/bin/date "+%Y-%m-%d %R:%S"): $@" >> "$log"
+}
 
-(
-	echo
-	echo "download stating on $(/bin/date)" 
-) >> $cam.log
+datadir="/home/mythtv/cams"
+logd="$datadir/log"
+log="$logd/$(/usr/bin/basename "$0").log"
 
+cd "$datadir"
+log "download stating." 
 
-for cam in 10.11.1.30
+for cam in 10.11.1.30 10.11.1.31
 do
-	clean_old_files "$cam/crud" >> $cam.log
+	log="$datadir/log/$cam.log"
+
+	clean_old_files "$cam/crud"
 
 	page_maxitem=1
 	page_max=1
@@ -128,48 +141,50 @@ do
 		fi	
 	done	
 
-	for(( i=$page_start; i <= $page_max; i++ ))
-	do
-		rec_files_cnt=""
-		eval $(/usr/bin/wget --timeout=30 -O - --user admin --password juan2three http://$cam/rec/rec_file.asp\?page=$i 2>/dev/null | process_page)
+	if /bin/ping -q -c 1 -w 2 $cam > /dev/null 2>&2
+	then
+		log "cam is reachable, so processing"
 
-		while [ "$rec_files_cnt"  == "" ]
-		do 
-			sleep 2
-			eval $(/usr/bin/wget --timeout=30 -O - --user admin --password juan2three http://$cam/rec/rec_file.asp\?page=$i 2>/dev/null | process_page)
-		done
-
-		page_max=$(/usr/bin/expr 1 + $rec_files_total / $page_maxitem)
-		(
-			echo
-			echo date $(/bin/date)
-			echo page $i
-			echo
-			echo rec_files_cnt=$rec_files_cnt
-			echo rec_files_total=$rec_files_total
-			echo page_maxitem=$page_maxitem
-			echo page_curr=$page_curr
-			echo page_max=$page_max
-			echo page_start=$page_start
-			echo
-		) >> $cam.log
-
-		for (( j=0; j < $rec_files_cnt; j++ ))
+		for(( i=$page_start; i <= $page_max; i++ ))
 		do
-			f="."
-#			[ -f "$cam/crud/${rec_files[$j]}" ] && f="crud"
-#			[ -f "$cam/keep/${rec_files[$j]}" ] && f="keep"
+			rec_files_cnt=""
+			eval $(/usr/bin/wget --timeout=30 -O - --user admin --password juan2three http://$cam/rec/rec_file.asp\?page=$i 2>/dev/null | process_page)
 
-			f=$(/usr/bin/find $cam -name "${rec_files[$j]}" | /usr/bin/tail -1)
-			[ -f "$f" ] || f="$cam/${rec_files[$j]}"
+			while [ "$rec_files_cnt"  == "" ]
+			do 
+				sleep 2
+				eval $(/usr/bin/wget --timeout=30 -O - --user admin --password juan2three http://$cam/rec/rec_file.asp\?page=$i 2>/dev/null | process_page)
+			done
 
-			get_file "$f" http://$cam/sd/${rec_files[$j]} ${rec_files_size[$j]}
-		done
-	done 
+			page_max=$(/usr/bin/expr 1 + $rec_files_total / $page_maxitem)
+			log
+			log date $(/bin/date)
+			log page $i
+			log
+			log rec_files_cnt=$rec_files_cnt
+			log rec_files_total=$rec_files_total
+			log page_maxitem=$page_maxitem
+			log page_curr=$page_curr
+			log page_max=$page_max
+			log page_start=$page_start
+			log
+
+			for (( j=0; j < $rec_files_cnt; j++ ))
+			do
+				f="."
+#				[ -f "$cam/crud/${rec_files[$j]}" ] && f="crud"
+#				[ -f "$cam/keep/${rec_files[$j]}" ] && f="keep"
+
+				f=$(/usr/bin/find $cam -name "${rec_files[$j]}" | /usr/bin/tail -1)
+				[ -f "$f" ] || f="$cam/${rec_files[$j]}"
+
+				get_file "$f" http://$cam/sd/${rec_files[$j]} ${rec_files_size[$j]}
+			done
+		done 
+	else
+		log "cam is not reachable, skipping"
+	fi
+
+	log "download finished"
 done
-
-(
-	echo "download finished on $(/bin/date)" 
-	echo
-) >> $cam.log
 
