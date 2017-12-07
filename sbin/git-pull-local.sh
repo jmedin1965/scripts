@@ -85,7 +85,7 @@ if [ -f /opt/gitlab/version-manifest.txt ]
 then
 	results="$(do_prog "/usr/bin/apt-get install --dry-run gitlab-ce")"
 	echo "$results" | log
-	check_results "$results" "is already the newest version."
+	check_results "$results" "is already the newest version"
 else
 	log "gitlab-ce: not installed on this system"
 fi
