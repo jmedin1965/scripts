@@ -6,34 +6,43 @@ getssl_dir="/etc/getssl"
 #prog="/usr/local/sbin/getssl --all --upgrade -w $getssl_dir --keep 40"
 prog="/usr/local/sbin/getssl --upgrade -w $getssl_dir --keep 40"
 
+hostname="$(/bin/hostname)"
+sucessMsg="No renewals were attempted."
+sucessMsg="certificate is valid for more than "
+mailSubject="${prog##*/} from $hostname"
+sleep="$(($RANDOM % 120))"
+sleep="$(($sleep * 60))"
+
+while [ "$#" != 0 ]
+do
+	case "$1" in
+	"--no-sleep")	sleep="0"
+			;;
+	"--")		shift
+			break
+			;;
+	"-*")		echo "$1: unknown option, exiting."
+			exit 1
+			;;
+	esac
+	shift
+done
 
 log_init "/var/log/getssl/renew.log"
 
 (
 	for dom in ${getssl_dir}/*
 	do
-		[ -e "${dom}/getssl.cfg" ] && $prog $(/usr/bin/basename "$dom") 2>&1
+		if [ -e "${dom}/getssl.cfg" ]
+		then
+			log "Checking certs for \"$dom\""
+			$prog "$@" $(/usr/bin/basename "$dom") 2>&1
+		fi
 	done
 
 )  | (
 
-	hostname="$(/bin/hostname)"
-	sucessMsg="No renewals were attempted."
-	sucessMsg="certificate is valid for more than "
-	mailSubject="${prog##*/} from $hostname"
-	sleep="$(($RANDOM % 120))"
-	sleep="$(($sleep * 60))"
-
-
-	while [ "$#" != 0 ]
-	do
-		[ "$1" == "--no-sleep" ] && sleep="0"
-		shift
-	done
-
-
-
-	log "start cert check: runnng from ${hostname}: $prog"
+	log "start cert check: runnng from ${hostname}: $prog $*"
 	log "random sleep for $sleep seconds"
 
 	/bin/sleep $sleep
