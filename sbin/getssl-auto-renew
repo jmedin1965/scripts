@@ -35,11 +35,25 @@ log_init "/var/log/getssl/renew.log"
 	do
 		if [ -e "${dom}/getssl.cfg" ]
 		then
-			log "Checking certs for \"$dom\""
-			$prog "$@" $(/usr/bin/basename "$dom") 2>&1
+			dom="$(/usr/bin/basename "$dom")"
+			echo "Checking certs for \"$dom\""
+
+			if [ -e "${getssl_dir}/$dom-true" ]
+			then
+				echo "${getssl_dir}/$dom-true: No need to check, file exists."
+			else
+				$prog "$@" $dom 2>&1
+				ev="$?"
+			
+				if [ "$ev" == 0 ]
+				then
+					touch "${getssl_dir}/$dom-true"
+					echo "No more checks needed."
+				fi
+				echo "exited with value $ev"
+			fi
 		fi
 	done
-
 )  | (
 
 	log "start cert check: runnng from ${hostname}: $prog $*"
@@ -51,8 +65,6 @@ log_init "/var/log/getssl/renew.log"
 	do
 		log "-> $line"
 	done
-
-	log "exited with value $?"
 
 	if [ "$(echo -e "$msg" | /bin/fgrep -c "$sucessMsg")" -eq 0 ]
 	then
