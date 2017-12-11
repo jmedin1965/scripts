@@ -12,6 +12,7 @@ sucessMsg="certificate is valid for more than "
 mailSubject="${prog##*/} from $hostname"
 sleep="$(($RANDOM % 120))"
 sleep="$(($sleep * 60))"
+check_disable_file="false"
 
 while [ "$#" != 0 ]
 do
@@ -28,6 +29,17 @@ do
 	shift
 done
 
+#
+# check for -f or --force option passed to getssl
+#
+for arg in "$@"
+do
+	case "$arg" in
+	"--force" | "-f")	check_disable_file="true";;
+	esac
+done
+
+
 log_init "/var/log/getssl/renew.log"
 
 (
@@ -36,18 +48,19 @@ log_init "/var/log/getssl/renew.log"
 		if [ -e "${dom}/getssl.cfg" ]
 		then
 			dom="$(/usr/bin/basename "$dom")"
+
 			echo "Checking certs for \"$dom\""
 
-			if [ -e "${getssl_dir}/$dom-true" ]
+			if [ -e "${getssl_dir}/$dom-check_disable=true" -a "$check_disable_file" == true ]
 			then
-				echo "${getssl_dir}/$dom-true: No need to check, file exists."
+				echo "${getssl_dir}/$dom-true: No need to check, check disable file exists."
 			else
 				$prog "$@" $dom 2>&1
 				ev="$?"
 			
-				if [ "$ev" == 0 ]
+				if [ "$ev" == 0 -a "$check_disable_file" == true ]
 				then
-					touch "${getssl_dir}/$dom-true"
+					touch "${getssl_dir}/$dom-check_disable=true"
 					echo "No more checks needed."
 				fi
 				echo "exited with value $ev"
