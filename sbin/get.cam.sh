@@ -42,7 +42,7 @@ get_file()
 	while :
 	do
 
-		log "attempt=$attempt$file, size on sd: $sd_size kb, size: $size kb - "
+		log "attempt=$attempt: $file, size on sd: $sd_size kb, size: $size kb - "
 
 		if [ "$size" == "$sd_size" ] || [ "$action" == failed ]
 		then
@@ -52,7 +52,7 @@ get_file()
 			[ "$action" == got ] && action="retry"
 			[ "$action" == skip ] && action="got"
 
-			/usr/bin/wget --timeout=30 -O "$file" --user admin --password juan2three $url 2>/dev/null 
+			/usr/bin/wget --no-cache --timeout=30 -O "$file" --user admin --password juan2three $url 2>/dev/null 
 
 			size="0"
 			if [ -f "$file" ]
@@ -148,12 +148,12 @@ do
 		for(( i=$page_start; i <= $page_max; i++ ))
 		do
 			rec_files_cnt=""
-			eval $(/usr/bin/wget --timeout=30 -O - --user admin --password juan2three http://$cam/rec/rec_file.asp\?page=$i 2>/dev/null | process_page)
+			eval $(/usr/bin/wget --no-cache --timeout=30 -O - --user admin --password juan2three http://$cam/rec/rec_file.asp\?page=$i 2>/dev/null | process_page)
 
 			while [ "$rec_files_cnt"  == "" ]
 			do 
 				sleep 2
-				eval $(/usr/bin/wget --timeout=30 -O - --user admin --password juan2three http://$cam/rec/rec_file.asp\?page=$i 2>/dev/null | process_page)
+				eval $(/usr/bin/wget --no-cache --timeout=30 -O - --user admin --password juan2three http://$cam/rec/rec_file.asp\?page=$i 2>/dev/null | process_page)
 			done
 
 			page_max=$(/usr/bin/expr 1 + $rec_files_total / $page_maxitem)
