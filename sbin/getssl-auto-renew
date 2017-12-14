@@ -85,7 +85,7 @@ log_init "/var/log/getssl/renew.log"
 		mail -s "$mailSubject" $mailTo <<< "$msg"
 	else
 		log "not emailing"
-		mail -s "$mailSubject" $mailTo <<< "$msg"
+#		mail -s "$mailSubject" $mailTo <<< "$msg"
 	fi
 )
 
