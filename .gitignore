@@ -30,4 +30,5 @@
 /lib/freerdp
 /lib/rlm_*
 
-
+# heyu
+/bin/heyu
