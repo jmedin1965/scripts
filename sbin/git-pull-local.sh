@@ -7,6 +7,8 @@ mailSubject="${prog##*/} for /opt-git-repo from $hostname"
 mailTo="jmedin@joy.com"
 doMail="false"
 readlink="/usr/bin/readlink" && [ -x "/bin/readlink" ] && readlink="/bin/readlink"
+stableBranchPattern='*stable*'
+stableBranchPattern='*'
 
 
 do_prog()
@@ -64,17 +66,32 @@ pwd="$(pwd)"
 #
 # Process /opt/git-repo
 #
+count=0
 for repo in /opt/git-repo/*/.git
 do
+	count=$((count + 1))
+
 	if [ -d "$repo" ]
 	then
 		repo="$(/usr/bin/dirname "$repo")"
-		process_start "repo $repo"
+		process_start "repo $count - $repo"
 		cd "$repo"
+
+		branch="$(/usr/bin/git rev-parse --abbrev-ref HEAD)"
+		branchList="$(/usr/bin/git branch -a)"
+		
+		log "--"
+		log "current branch: $branch"
+		log "branch list:"
+		log <<< "$branchList"
+		log "--"
+		
 		results="$(do_prog "/usr/bin/git pull")"
 		echo "$results" | log
 		check_results "$results" "Already up-to-date."
 	fi
+
+	#[ "$count" -ge 8 ] && exit 0
 done
 
 #
