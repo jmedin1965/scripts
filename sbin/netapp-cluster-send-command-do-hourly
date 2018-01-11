@@ -1,0 +1,193 @@
+#!/bin/bash
+
+################################################
+# Global variables
+#
+DEBUG="1"
+DEBUG="0"
+
+main()
+{
+	local cmd="/usr/local/sbin/netapp-cluster-send-command"
+
+	#
+	# Source snapmirror sources for each cluster
+	#
+	local SLIST_WIC_iWAN="WIC140NAV:bne120nav_vol_NA_2554_DS_2_mirrored_to_wic bne110nav_DR:vol1_mirrored hvs110nav_DR:vol_Shares_mirrored"
+	local SLIST_WIC_MPLS="WIC140NAV:som120nav_vol_DataStore_2_mirrored_mirror mvm130nav_DR:vol1_mirrored"
+	local SLIST_WIC="$SLIST_WIC_iWAN $SLIST_WIC_MPLS"
+	local SLIST_BNE_iWAN="bne140nav:WIC130NAV_vol_ESX_DataStores_mirrored wic120nav_DR:vol1_mirrored wic120nav_DR:joymvl02fps wic120nav_DR:vol_SqlBackup_mirror_vault"
+	local SLIST_BNE_MPLS="roc110nav_DR:vol1_mirrored som110nav_DR:vol1_mirrored"
+	local SLIST_BNE="$SLIST_BNE_iWAN $SLIST_BNE_MPLS"
+
+	#
+	# Cluster lists per state
+	#
+	local CLIST_iWAN_NSW="wic100nac"
+	local CLIST_iWAN_QLD="bne100nac"
+	local CLIST_MPLS_NSW="hvs100nac mvm100nac som100nac"
+	local CLIST_MPLS_QLD="roc100nac"
+
+	#
+	# Throttle settings
+	#
+	local TR_DAY_iWAN="2500"
+	local TR_NIGHT_iWAN="4900"
+	local TR_DAY_MPLS="125"
+	local TR_NIGHT_MPLS="1250"
+
+	#
+	# Save stats on every call
+	#
+	$cmd --save-stats  --cluster WIC100NAC $SLIST_WIC --cluster BNE100NAC $SLIST_BNE
+
+	#
+	# Email stats at 8:00 AM
+	#
+	if is_time_between  "Australia/NSW" 8 0   8 30
+	then
+		$cmd --email-stats --cluster BNE100NAC $SLIST_BNE
+		$cmd --email-stats --cluster WIC100NAC $SLIST_BNE
+	fi
+
+	#
+	# Old per snapmirror throttle
+	#
+	$cmd --cluster WIC100NAC --throttle $TR_NIGHT_iWAN $SLIST_WIC_iWAN
+	$cmd --cluster WIC100NAC --throttle $TR_NIGHT_MPLS $SLIST_WIC_MPLS
+	$cmd --cluster BNE100NAC --throttle $TR_NIGHT_iWAN $SLIST_BNE_iWAN
+	$cmd --cluster BNE100NAC --throttle $TR_NIGHT_MPLS $SLIST_BNE_MPLS
+
+	#
+	# NSW Global Throttle
+	#
+	if is_time_between  "Australia/NSW" 6 0   18 0 && \
+	   is_day           "Australia/NSW" mon tue wed thu fri && \
+	   ! isdate_holiday "Australia/NSW"
+	then
+		msg "Australia/NSW Day throttle set"
+		trottle_set $TR_DAY_iWAN $CLIST_iWAN_NSW
+		trottle_set $TR_DAY_MPLS $CLIST_MPLS_NSW
+	else
+		msg "Australia/NSW Night throttle set"
+		trottle_set $TR_NIGHT_iWAN $CLIST_iWAN_NSW
+		trottle_set $TR_NIGHT_MPLS $CLIST_MPLS_NSW
+	fi
+
+	#
+	# QLD Global Throttle
+	#
+	if is_time_between  "Australia/Queensland" 6 0   18 0 && \
+	   is_day           "Australia/Queensland" mon tue wed thu fri && \
+	   ! isdate_holiday "Australia/Queensland"
+	then
+		msg "Australia/Queensland Day throttle set"
+		trottle_set $TR_DAY_iWAN $CLIST_iWAN_QLD
+		trottle_set $TR_DAY_MPLS $CLIST_MPLS_QLD
+	else
+		msg "Australia/Queensland Night throttle set"
+		trottle_set $TR_NIGHT_iWAN $CLIST_iWAN_QLD
+		trottle_set $TR_NIGHT_MPLS $CLIST_MPLS_QLD
+	fi
+
+	! isdate_holiday "Australia/NSW"
+	echo $?
+
+}
+
+
+msg()
+{
+	[ "$DEBUG" == 0 ] || echo "$(/usr/bin/env $timezone /bin/date +%Y-%m-%d):" "$@" 
+}
+
+# isdate_holiday [timezone] - check if todays date is a holiday 
+# 
+#
+isdate_holiday()
+{
+	local timezone=""
+
+	for arg in "$@"
+	do
+		timezone="TZ=$arg"
+	done
+
+	local date="$(/usr/bin/env $timezone /bin/date +%Y-%m-%d)"
+
+	case "$(/usr/bin/env $timezone /bin/date +%Y-%m-%d)" in
+	????-12-25)	return 0;;	# Christmas dAY
+	????-12-26)	return 0;;	# bOXING dAY
+	????-01-01)	return 0;;	# New Years Day
+	????-01-26)	return 0;;	# Australia Day
+	esac
+
+	return 1
+}
+
+# is_day [day|timezone] ...
+#
+# if any of the day strings match the current day or the week, return true
+#
+is_day()
+{
+	local timezone=""
+	# Day of week (0..6) 0 is sunday
+	local day="$(/usr/bin/env $timezone /bin/date +%w)"
+
+	for arg in "$@"
+	do
+		case "$arg" in
+		[Ss][Uu][Nn]*)	[ "$day" == 0 ] && return 0;;
+		[Mm][Oo][Nn]*)	[ "$day" == 1 ] && return 0;;
+		[Tt][Uu][Ee]*)	[ "$day" == 2 ] && return 0;;
+		[Ww][Ee][Dd]*)	[ "$day" == 3 ] && return 0;;
+		[Tt][Hh][Uu]*)	[ "$day" == 4 ] && return 0;;
+		[Ff][Rr][Ii]*)	[ "$day" == 5 ] && return 0;;
+		[Ss][Aa][Tt]*)	[ "$day" == 6 ] && return 0;;
+		*)	
+			timezone="TZ=$arg"
+			day="$(/usr/bin/env $timezone /bin/date +%w)"
+	;;
+		esac
+	done
+	return 1
+}
+
+#
+# is_time_between [TimeZone] <hour1> <minute1> <hour2> <minute2>
+#
+# returns true if the current time falls between hour1 minute1 and hour2 minute2
+#
+# timezone is optional. Look in /usr/share/zoneinfo/
+#
+is_time_between()
+{
+	local timezone=""
+	local time1
+	local time2
+
+	[ $# == 5 ] && timezone="TZ=$1" && shift
+
+	if [ $# == 4 ]
+	then
+		time="$(/usr/bin/env $timezone /bin/date +%H%M)"
+		time1="$(/usr/bin/printf "%02d%02d\n" $1 $2)"
+		time2="$(/usr/bin/printf "%02d%02d\n" $3 $4)"
+		[ "$time" -gt "$time1" -a "$time" -lt "$time2" ] && return
+	fi
+	return 1
+}
+
+trottle_set ()
+{
+	local throttle="$1"
+	shift
+	echo $cmd \
+		--replication.throttle.enable on "$@" \
+		--replication.throttle.incoming.max_kbs $throttle "$@" \
+		--replication.throttle.outgoing.max_kbs $throttle "$@"
+}
+
+main
+

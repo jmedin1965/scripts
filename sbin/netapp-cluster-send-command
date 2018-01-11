@@ -25,6 +25,8 @@ throttle_diff=""				# The difference between the requested throttle and the actu
 sm_tape_session_status=""			# the status of the smtape session
 sm_sessionType=""				# the type of session we are working with. This is deduced from the destination volume format
 sm_source_path=""				# the snapmirror source path
+sm_abort_on_throttle_change="true"
+sm_abort_on_throttle_change="false"
 
 # logging related vars
 logs="/var/log/netapp"
@@ -412,6 +414,7 @@ process_netapp_show()
 	local d h
 	local SM_SHOW
 	local sm_sessionType=""
+	local destCluster
 
 	sm_cur_throttle="unknown"
 	sm_trottle_kbps="unknown"
@@ -424,6 +427,7 @@ process_netapp_show()
 	then
 		debug 2 "send_command $cluster snapmirror show -destination-path ${vserver}:${volume}"
 
+		destCluster="$(echo "$vserver" | /bin/sed 's/^\(...\).*/\1100NAC/')"
 		#
 		# This is done because the reading of input from a pipe looses access to variables set in this function
 		#
@@ -490,6 +494,7 @@ process_netapp_show()
 		then
 			log " SMTape session Status = $sm_tape_session_status"
 		else
+			log " Dest Cluster          = $destCluster"
 			log " throttle requested    = $throttle"
 			log " Current Throttle      = $sm_cur_throttle"
 			log " Throttle (KB/sec)     = $sm_trottle_kbps"
@@ -509,7 +514,9 @@ process_netapp_show()
 			if [ "$sm_sessionType" == snapmirror ]
 			then
 				header="$header,replication.throttle.enable,replication.throttle.incoming.max_kbs,replication.throttle.outgoing.max_kbs"
-				data="$data,$(get_option "$cluster" replication.throttle.enable),$(get_option "$cluster" replication.throttle.incoming.max_kbs),$(get_option "$cluster" replication.throttle.outgoing.max_kbs),"
+				header="$header,${destCluster}:replication.${destCluster}:throttle.enable,replication.throttle.incoming.max_kbs,${destCluster}:replication.throttle.outgoing.max_kbs"
+				data="$data,$(get_option "$cluster" replication.throttle.enable),$(get_option "$cluster" replication.throttle.incoming.max_kbs),$(get_option "$cluster" replication.throttle.outgoing.max_kbs)"
+				data="$data,${destCluster}: $(get_option "$destCluster" replication.throttle.enable),$(get_option "$destCluster" replication.throttle.incoming.max_kbs),$(get_option "$destCluster" replication.throttle.outgoing.max_kbs)"
 			fi
 
 			if [ ! -e "$stats_f" ]
@@ -589,7 +596,7 @@ throttle_snapmirror()
 
 		if [ "$throttle_diff" -gt 0 ]
 		then
-			if [ "$sm_rel_status" == Transferring ]
+			if [ "$sm_rel_status" == Transferring -a "$sm_abort_on_throttle_change" == "true" ]
 			then
 				send_command $cluster snapmirror abort $vserver:$volume
 				debug 1 "abort snapmirror, then sleep for $sleep seconds"
@@ -598,7 +605,7 @@ throttle_snapmirror()
 
 			send_command $cluster snapmirror modify -destination-path $vserver:$volume -throttle $throttle
 
-			if [ "$sm_rel_status" == Transferring ]
+			if [ "$sm_rel_status" == Transferring  -a "$sm_abort_on_throttle_change" == "true" ]
 			then
 				send_command $cluster snapmirror update $vserver:$volume
 				debug 1 "update snapmirror, then sleep for $sleep seconds"
