@@ -34,7 +34,7 @@ log="/dev/stdout"				# log messages to stdout
 log="/dev/stderr"				# log messages to stderr
 log_array=()
 stats_f_ext="csv"
-stats_f_ext="test.csv"
+#stats_f_ext="test.csv"
 
 # mail related vars
 mailAttachedFiles=()
@@ -619,7 +619,7 @@ throttle_snapmirror()
 	done
 
 
-	if [ "$throttle_diff" -gt 4 ]
+	if [ "$throttle_diff" -gt 4 -a "$sm_abort_on_throttle_change" == "true" ]
 	then
 		send_stats_email "Error: failed to change throttle" $mailto
 	fi

@@ -3,8 +3,10 @@
 ################################################
 # Global variables
 #
-DEBUG="1"
 DEBUG="0"
+DEBUG="1"
+
+exec >> /var/log/netapp/netapp-cluster-send-command-do-hourly 2>&1
 
 main()
 {
@@ -32,31 +34,39 @@ main()
 	# Throttle settings
 	#
 	local TR_DAY_iWAN="2500"
+	local TR_DAY_iWAN="3125"
 	local TR_NIGHT_iWAN="4900"
+	local TR_NIGHT_iWAN="5625"
 	local TR_DAY_MPLS="125"
+	local TR_DAY_MPLS="625"
 	local TR_NIGHT_MPLS="1250"
+	local TR_NIGHT_MPLS="1875"
 
 	#
 	# Save stats on every call
 	#
-	$cmd --save-stats  --cluster WIC100NAC $SLIST_WIC --cluster BNE100NAC $SLIST_BNE
+#	$cmd --save-stats  --cluster WIC100NAC $SLIST_WIC --cluster BNE100NAC $SLIST_BNE
 
 	#
 	# Email stats at 8:00 AM
 	#
-	if is_time_between  "Australia/NSW" 8 0   8 30
+	if is_time_between  "Australia/NSW" 8 0   8 40
 	then
+		msg email-stats
 		$cmd --email-stats --cluster BNE100NAC $SLIST_BNE
-		$cmd --email-stats --cluster WIC100NAC $SLIST_BNE
+		$cmd --email-stats --cluster WIC100NAC $SLIST_WIC
+		msg email-stats done
 	fi
 
 	#
 	# Old per snapmirror throttle
 	#
+	msg throttle snapmirror schedules
 	$cmd --cluster WIC100NAC --throttle $TR_NIGHT_iWAN $SLIST_WIC_iWAN
 	$cmd --cluster WIC100NAC --throttle $TR_NIGHT_MPLS $SLIST_WIC_MPLS
 	$cmd --cluster BNE100NAC --throttle $TR_NIGHT_iWAN $SLIST_BNE_iWAN
 	$cmd --cluster BNE100NAC --throttle $TR_NIGHT_MPLS $SLIST_BNE_MPLS
+	msg throttle snapmirror schedules done
 
 	#
 	# NSW Global Throttle
@@ -73,6 +83,7 @@ main()
 		trottle_set $TR_NIGHT_iWAN $CLIST_iWAN_NSW
 		trottle_set $TR_NIGHT_MPLS $CLIST_MPLS_NSW
 	fi
+	msg "Australia/NSW throttle done"
 
 	#
 	# QLD Global Throttle
@@ -89,10 +100,7 @@ main()
 		trottle_set $TR_NIGHT_iWAN $CLIST_iWAN_QLD
 		trottle_set $TR_NIGHT_MPLS $CLIST_MPLS_QLD
 	fi
-
-	! isdate_holiday "Australia/NSW"
-	echo $?
-
+	msg "Australia/Queensland throttle done"
 }
 
 
@@ -107,6 +115,7 @@ msg()
 isdate_holiday()
 {
 	local timezone=""
+	local rv="1"
 
 	for arg in "$@"
 	do
@@ -122,7 +131,9 @@ isdate_holiday()
 	????-01-26)	return 0;;	# Australia Day
 	esac
 
-	return 1
+	msg isdate_holiday "$@" = $rv
+
+	return "$rv"
 }
 
 # is_day [day|timezone] ...
@@ -134,24 +145,28 @@ is_day()
 	local timezone=""
 	# Day of week (0..6) 0 is sunday
 	local day="$(/usr/bin/env $timezone /bin/date +%w)"
+	local rv="1"
 
 	for arg in "$@"
 	do
 		case "$arg" in
-		[Ss][Uu][Nn]*)	[ "$day" == 0 ] && return 0;;
-		[Mm][Oo][Nn]*)	[ "$day" == 1 ] && return 0;;
-		[Tt][Uu][Ee]*)	[ "$day" == 2 ] && return 0;;
-		[Ww][Ee][Dd]*)	[ "$day" == 3 ] && return 0;;
-		[Tt][Hh][Uu]*)	[ "$day" == 4 ] && return 0;;
-		[Ff][Rr][Ii]*)	[ "$day" == 5 ] && return 0;;
-		[Ss][Aa][Tt]*)	[ "$day" == 6 ] && return 0;;
+		[Ss][Uu][Nn]*)	[ "$day" == 0 ] && rv="0";;
+		[Mm][Oo][Nn]*)	[ "$day" == 1 ] && rv="0";;
+		[Tt][Uu][Ee]*)	[ "$day" == 2 ] && rv="0";;
+		[Ww][Ee][Dd]*)	[ "$day" == 3 ] && rv="0";;
+		[Tt][Hh][Uu]*)	[ "$day" == 4 ] && rv="0";;
+		[Ff][Rr][Ii]*)	[ "$day" == 5 ] && rv="0";;
+		[Ss][Aa][Tt]*)	[ "$day" == 6 ] && rv="0";;
 		*)	
 			timezone="TZ=$arg"
 			day="$(/usr/bin/env $timezone /bin/date +%w)"
 	;;
 		esac
 	done
-	return 1
+
+	msg is_day "$@" = $rv
+
+	return "$rv"
 }
 
 #
@@ -166,6 +181,7 @@ is_time_between()
 	local timezone=""
 	local time1
 	local time2
+	local rv="1"
 
 	[ $# == 5 ] && timezone="TZ=$1" && shift
 
@@ -174,19 +190,24 @@ is_time_between()
 		time="$(/usr/bin/env $timezone /bin/date +%H%M)"
 		time1="$(/usr/bin/printf "%02d%02d\n" $1 $2)"
 		time2="$(/usr/bin/printf "%02d%02d\n" $3 $4)"
-		[ "$time" -gt "$time1" -a "$time" -lt "$time2" ] && return
+		[ "$time" -gt "$time1" -a "$time" -lt "$time2" ] && rv="0"
 	fi
-	return 1
+
+	msg is_time_between $timezone "$@" = $rv
+
+	return "$rv"
 }
 
-trottle_set ()
+trottle_set()
 {
 	local throttle="$1"
 	shift
-	echo $cmd \
+	$cmd \
 		--replication.throttle.enable on "$@" \
 		--replication.throttle.incoming.max_kbs $throttle "$@" \
 		--replication.throttle.outgoing.max_kbs $throttle "$@"
+
+	msg trottle_set throttle=$throttle "$@"
 }
 
 main
