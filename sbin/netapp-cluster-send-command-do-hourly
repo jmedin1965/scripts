@@ -45,7 +45,7 @@ main()
 	#
 	# Save stats on every call
 	#
-#	$cmd --save-stats  --cluster WIC100NAC $SLIST_WIC --cluster BNE100NAC $SLIST_BNE
+	$cmd --save-stats  --cluster WIC100NAC $SLIST_WIC --cluster BNE100NAC $SLIST_BNE
 
 	#
 	# Email stats at 8:00 AM
