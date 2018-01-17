@@ -1,6 +1,15 @@
 #!/bin/bash
 
-. /usr/local/sbin/local-functions
+if [ -e /opt/git-repo/local/sbin/local-functions ]
+then
+	. /opt/git-repo/local/sbin/local-functions
+elif [ -e /usr/local/sbin/local-functions ]
+then
+	. /usr/local/sbin/local-functions
+elif [ -e /mnt/autofs/nfs/git-repo/local/sbin/local-functions ]
+then
+	. /mnt/autofs/nfs/git-repo/local/sbin/local-functions
+fi
 
 prog="/usr/bin/git pull"
 mailSubject="${prog##*/} for /opt-git-repo from $hostname"
