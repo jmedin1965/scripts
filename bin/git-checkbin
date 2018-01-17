@@ -64,8 +64,30 @@ do
 done
 
 case "$1" in
-	"enable")	echo "$filter enabled";  /usr/bin/git config hooks.${filter} true;;
-	"disable")	echo "$filter disabled"; /usr/bin/git config hooks.${filter} false;;
+	"enable")
+		/usr/bin/git config hooks.${filter} true
+		bmr="$(/usr/bin/git config --local --get branch.master.remote)"
+		url="$(/usr/bin/git config --local --get remote.${bmr}.url)"
+		set -- $url
+		if [ $# -gt 1 ]
+		then
+			while [ $# != 1 ]; do shift; done
+			/usr/bin/git config --local remote.${bmr}.url "$1"
+
+		fi 
+		echo "$filter enabled"
+		;;
+	"disable")
+		/usr/bin/git config hooks.${filter} false
+		bmr="$(/usr/bin/git config --local --get branch.master.remote)"
+		url="$(/usr/bin/git config --local --get remote.${bmr}.url)"
+		pushurl="$(/usr/bin/git config --local --get remote.${bmr}.pushurl)"
+		set -- $url
+		[ $# == 1 ] && /usr/bin/git config --local remote.${bmr}.url "disabled $1"
+		while [ $# != 1 ]; do shift; done
+		[ -z "$pushurl" ] && [ -n "$1" ] && /usr/bin/git config --local remote.${bmr}.pushurl  "$1"
+		echo "$filter disabled"
+		;;
 	"init")
 		hook_add pre-commit "/usr/bin/git ${filter}"
 		hook_add post-merge "[ \"\$(/usr/bin/git config --get hooks.${filter})\" == true ] && echo \"pull disabled in \\\"$GIT_DIR/hooks/post-merge\\\"\" && exit 1"
