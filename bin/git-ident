@@ -15,13 +15,16 @@
 # example "README.md filter=git-ident"
 #
 
+GIT_DIR="$(git rev-parse --git-dir)"
+filter="git-ident"
+
 #
 # Default mode is smudge unless $1 == clean
 #
 case "$1" in
 init)
-    git config filter.git-ident.clean  "git-ident clean"
-    git config filter.git-ident.smudge "git-ident smudge"
+    git config filter.git-ident.clean  "$filter clean"
+    git config filter.git-ident.smudge "$filter smudge"
     ;;
 clean)
 	echo clean >> /tmp/log.txt
@@ -34,6 +37,38 @@ clean)
        -e "s,\\\$GitTagsShort[^$]*,\\\$GitTagsShort,g" \
 	# Do not remove this comment
     ;;
+track)
+	if [ -e "${GIT_DIR}/../.gitattributes" ]
+	then
+		if [ -z "$2" ]
+		then
+			echo "Listing tracked paths"
+			/bin/grep -e "\sfilter=${filter}\s" -e "\sfilter=${filter}$" "${GIT_DIR}/../.gitattributes" | while read a b c
+			do
+				echo "    $a"
+			done
+		else
+			shift
+			for file in "$@"
+			do
+				fileNoSpaces="${file// /[[:space:]]}"
+				match="$(
+					/bin/cat "${GIT_DIR}/../.gitattributes" | while read a b c d
+					do
+						[ "$a" == "${fileNoSpaces}" ] && [ "$b" == "filter=${filter}" -o "$c"  == "filter=${filter}" -o "$d" == "filter=${filter}" ] && echo "$a"
+					done
+					)"
+				if [ -z "$match" ]
+				then
+					echo "Tracking $file"
+					echo "$fileNoSpaces filter=git-ident" >> "${GIT_DIR}/../.gitattributes"
+				else
+					echo "$file already supported"
+				fi
+			done
+		fi
+	fi
+	;;
 *)
 	echo smudge >> /tmp/log.txt
     sed \

@@ -38,9 +38,11 @@ main()
 	local TR_NIGHT_iWAN="4900"
 	local TR_NIGHT_iWAN="5625"
 	local TR_DAY_MPLS="125"
-	local TR_DAY_MPLS="625"
+	local TR_DAY_MPLS="400"
+#	local TR_DAY_MPLS="625"
 	local TR_NIGHT_MPLS="1250"
-	local TR_NIGHT_MPLS="1875"
+	local TR_NIGHT_MPLS="1400"
+#	local TR_NIGHT_MPLS="1875"
 
 	#
 	# Save stats on every call
@@ -125,10 +127,10 @@ isdate_holiday()
 	local date="$(/usr/bin/env $timezone /bin/date +%Y-%m-%d)"
 
 	case "$(/usr/bin/env $timezone /bin/date +%Y-%m-%d)" in
-	????-12-25)	return 0;;	# Christmas dAY
-	????-12-26)	return 0;;	# bOXING dAY
-	????-01-01)	return 0;;	# New Years Day
-	????-01-26)	return 0;;	# Australia Day
+	????-12-25)	rv="0";;	# Christmas dAY
+	????-12-26)	rv="0";;	# bOXING dAY
+	????-01-01)	rv="0";;	# New Years Day
+	????-01-26)	rv="0";;	# Australia Day
 	esac
 
 	msg isdate_holiday "$@" = $rv
