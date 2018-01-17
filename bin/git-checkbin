@@ -1,0 +1,158 @@
+#!/bin/bash
+#
+# look for binary files
+#
+# REF: https://stackoverflow.com/questions/20226132/is-there-a-git-hook-which-can-prevent-binary-check-ins
+#
+
+#
+# Join stderr to stdout
+#
+exec 1>&2
+
+GIT_DIR="$(git rev-parse --git-dir)"
+filter="checkbin"
+numstat=""
+
+sha256sum()
+{
+	local arg
+	for arg in "$@"
+	do
+		echo "oid sha256:$(set -- $(/usr/bin/sha256sum "$arg"); echo $1)"
+		echo "size $(set -- $(/usr/bin/wc --bytes "$arg"); echo $1)"
+		shift
+	done
+}
+
+#
+# process command line options
+#
+for arg in "$@"
+do
+	[ "$arg" == "--all" ] && numstat="4b825dc642cb6eb9a060e54bf8d69288fbee4904"
+done
+
+case "$1" in
+	"init")
+		if [ -z "$GIT_DIR" ]
+		then 
+			echo "Error: unable to find git hooks folder."
+			echo "       Please add \"/usr/bin/git ${filter}\" to pre-commit hook manualy."
+			exit 1
+		fi
+
+		if [ -e "$GIT_DIR/hooks/pre-commit" -a \
+		     "$(/bin/grep --count "^/usr/bin/git ${filter}$" "$GIT_DIR/hooks/pre-commit")" == 0 \
+		   ]
+		then
+			echo "Error: \"$GIT_DIR/hooks/pre-commit\" already exists."
+			echo "       Please add \"/usr/bin/git ${filter}\" to pre-commit hook manualy."
+			exit 1
+		else
+			echo "Adding ${filter} to \"$GIT_DIR/hooks/pre-commit\""
+			echo "#!/bin/bash" > "$GIT_DIR/hooks/pre-commit"
+			echo "/usr/bin/git ${filter}" >> "$GIT_DIR/hooks/pre-commit"
+			echo "git ${filter} is now active."
+		fi
+		/bin/chmod 755 "$GIT_DIR/hooks/pre-commit"
+
+		pre_push="0"
+		if [ ! -e "$GIT_DIR/hooks/pre-commit" ]
+		then
+			echo "#!/bin/bash" > "$GIT_DIR/hooks/pre-push"
+		else
+			pre_push="$(/usr/bin/tail "$GIT_DIR/hooks/pre-push" | /bin/grep --count "^exit 1$")"
+		fi
+
+		if [ "$pre_push" == 0 ]
+		then
+			echo "push disabled in \"$GIT_DIR/hooks/pre-push\""
+			echo "exit 1" >> "$GIT_DIR/hooks/pre-push"
+		fi
+		/bin/chmod 755 "$GIT_DIR/hooks/pre-push"
+
+		/usr/bin/git config filter.${filter}.clean "git-${filter} clean -- %f"
+		/usr/bin/git config filter.${filter}.smudge "git-${filter} smudge -- %f"
+		/usr/bin/git config hooks.${filter} true
+		
+		;;
+	"clean")
+		shift
+		while [ $# != 0 ]
+		do
+			case "$1" in
+			"--")	shift; sha256sum "$@"; break;;
+			"-"*)	echo "${1}: Unknown option";;
+			*)	sha256sum "$1";;
+			esac
+			shift
+		done
+		;;
+	"smudge")
+		;;
+	"fix")
+		shift
+		opts=""
+		for file in "$@"
+		do
+			case "$file" in
+			"-"*) opts="$opts $file";;
+			*)
+				echo fix $file
+				/usr/bin/git rm $opts --cached "$file"
+				/usr/bin/git add "$file"
+				;;
+			esac
+		done
+		if [ $# -gt 0 ]
+		then
+			echo "Please commit changes that were made."
+	fi
+		;;
+	"track")
+		if [ -e "${GIT_DIR}/../.gitattributes" ]
+		then
+			if [ -z "$2" ]
+			then
+				echo "Listing tracked paths"
+				/bin/grep -e "\sfilter=${filter}\s" -e "\sfilter=${filter}$" "${GIT_DIR}/../.gitattributes" | while read a b c
+				do
+					echo "    $a"
+				done
+			else
+				shift
+				for file in "$@"
+				do
+					fileNoSpaces="${file// /[[:space:]]}"
+					match="$(
+						/bin/cat "${GIT_DIR}/../.gitattributes" | while read a b c d
+						do
+							[ "$a" == "${fileNoSpaces}" ] && [ "$b" == "filter=${filter}" -o "$c"  == "filter=${filter}" -o "$d" == "filter=${filter}" ] && echo "$a"
+						done
+						)"
+					if [ -z "$match" ]
+					then
+						echo "Tracking $file"
+						echo "$fileNoSpaces filter=${filter}" >> "${GIT_DIR}/../.gitattributes"
+					else
+						echo "$file already supported"
+					fi
+				done
+			fi
+		fi
+		;;
+	*)
+		[ "$(/usr/bin/git config --get hooks.${filter})" == true ] || exit 0
+		if /usr/bin/git diff --cached --numstat $numstat | /bin/fgrep --quiet -- '-	-	'
+		then
+			echo "Error: binary files found"
+			/usr/bin/git diff $opts --cached --numstat $numstat | /bin/fgrep -- '-	-	' | while read a b c
+			do
+				echo "    $c"
+			done
+			exit 1
+		fi
+		;;
+esac
+
