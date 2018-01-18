@@ -41,7 +41,7 @@ main()
 	local TR_DAY_MPLS="400"
 #	local TR_DAY_MPLS="625"
 	local TR_NIGHT_MPLS="1250"
-	local TR_NIGHT_MPLS="1400"
+#	local TR_NIGHT_MPLS="1400"
 #	local TR_NIGHT_MPLS="1875"
 
 	#
