@@ -38,9 +38,10 @@ main()
 	local TR_NIGHT_iWAN="4900"
 	local TR_NIGHT_iWAN="5625"
 	local TR_DAY_MPLS="125"
-	local TR_DAY_MPLS="400"
+#	local TR_DAY_MPLS="400"
 #	local TR_DAY_MPLS="625"
 	local TR_NIGHT_MPLS="1250"
+	local TR_NIGHT_MPLS="600"
 #	local TR_NIGHT_MPLS="1400"
 #	local TR_NIGHT_MPLS="1875"
 
