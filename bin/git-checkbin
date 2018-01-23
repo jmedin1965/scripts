@@ -84,7 +84,7 @@ main()
 					;;
 				esac
 			done
-			[ $# -gt 0 ] && echo "Please commit changes that were made."
+			[ $# -gt 0 ] && error "Please do a \"git-$filter disable\", then commit changes that were made, and enable again."
 			;;
 		"track")	shift && do_track "$@";;
 		""|check)
@@ -232,12 +232,15 @@ do_enable()
 	then
 		$git config hooks.${filter} false
 		bmr="$($git config --local --get branch.master.remote)"
-		url="$($git config --local --get remote.${bmr}.url)"
-		pushurl="$($git config --local --get remote.${bmr}.pushurl)"
-		set -- $url
-		[ $# == 1 ] && $git config --local remote.${bmr}.url "disabled $1"
-		while [ $# != 1 ]; do shift; done
-		[ -z "$pushurl" ] && [ -n "$1" ] && $git config --local remote.${bmr}.pushurl  "$1"
+		if [ -n "$bmr" ]
+		then
+			url="$($git config --local --get remote.${bmr}.url)"
+			pushurl="$($git config --local --get remote.${bmr}.pushurl)"
+			set -- $url
+			[ $# == 1 ] && $git config --local remote.${bmr}.url "disabled $1"
+			while [ $# != 1 ]; do shift; done
+			[ -z "$pushurl" ] && [ -n "$1" ] && $git config --local remote.${bmr}.pushurl  "$1"
+		fi
 		echo "$filter disabled"
 	fi
 }
