@@ -51,16 +51,16 @@ log_init "/var/log/getssl/renew.log"
 
 			echo "Checking certs for \"$dom\""
 
-			if [ -e "${getssl_dir}/$dom-check_disable=true" -a "$check_disable_file" == true ]
+			if [ -e "${getssl_dir}/${dom}-check_disable" -a "$check_disable_file" == true ]
 			then
-				echo "${getssl_dir}/$dom-true: No need to check, check disable file exists."
+				echo "${getssl_dir}/${dom}-check_disable: No need to check, check disable file exists."
 			else
 				$prog "$@" $dom 2>&1
 				ev="$?"
 			
 				if [ "$ev" == 0 -a "$check_disable_file" == true ]
 				then
-					touch "${getssl_dir}/$dom-check_disable=true"
+					touch "${getssl_dir}/${dom}-check_disable"
 					echo "No more checks needed."
 				fi
 				echo "exited with value $ev"
