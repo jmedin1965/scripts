@@ -3,10 +3,11 @@
 # /usr/local/bin/dhcp-dyndns.sh
 
 # This script is for secure DDNS updates on Samba 4
+# REF: https://wiki.samba.org/index.php/Configure_DHCP_to_update_DNS_records_with_BIND9
 # Version: 0.8.9
 
 # Uncomment the next line if using a self compiled Samba and adjust for your PREFIX
-#PATH="/usr/local/samba/bin:/usr/local/samba/sbin:$PATH"
+PATH="/usr/local/samba/bin:/usr/local/samba/sbin:$PATH"
 BINDIR=$(samba -b | grep 'BINDIR' | grep -v 'SBINDIR' | awk '{print $NF}')
 WBINFO="$BINDIR/wbinfo"
 
@@ -23,6 +24,7 @@ REALM=$(echo ${domain^^})
 
 # Additional nsupdate flags (-g already applied), e.g. "-d" for debug
 NSUPDFLAGS="-d"
+NSUPDFLAGS=""
 
 # krbcc ticket cache
 export KRB5CCNAME="/tmp/dhcp-dyndns.cc"
