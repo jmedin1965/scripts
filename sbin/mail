@@ -1,5 +1,13 @@
 #!/bin/bash
 
-. /usr/local/sbin/local-functions
+functions=""
 
-mail "$@"
+[ -e /usr/local/sbin/local-functions ] && functions="/usr/local/sbin/local-functions"
+[ -e /opt/git-repo/local/sbin/local-functions ] && functions="/opt/git-repo/local/sbin/local-functions"
+
+if [ -n "$functions" ]
+then
+	. "$functions"
+	mail "$@"
+fi
+

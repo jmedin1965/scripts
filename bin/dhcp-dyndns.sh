@@ -11,13 +11,29 @@ PATH="/usr/local/samba/bin:/usr/local/samba/sbin:$PATH"
 BINDIR=$(samba -b | grep 'BINDIR' | grep -v 'SBINDIR' | awk '{print $NF}')
 WBINFO="$BINDIR/wbinfo"
 
+#
+# msg - print a message to logger or terminal
+#
+istty="$(/usr/bin/tty -s && echo true || echo false)"
+msg()
+{
+	if [ "$istty" == true ]
+	then
+        	echo "$(/bin/date "+%b %d %H:%M:%S"):" "$@"
+	else
+        	logger "$@"
+	fi
+}
+
 # DNS domain
 domain=$(hostname -d)
 if [ -z ${domain} ]; then
-    logger "Cannot obtain domain name, is DNS set up correctly?"
-    logger "Cannot continue... Exiting."
+    msg "Cannot obtain domain name, is DNS set up correctly?"
+    msg "Cannot continue... Exiting."
     exit 1
 fi
+server="$(/usr/bin/host $domain)"
+server="${server#* has address }"
 
 # Samba 4 realm
 REALM=$(echo ${domain^^})
@@ -37,12 +53,12 @@ SETPRINCIPAL="dhcpduser@${REALM}"
 # /tmp/dhcp-dyndns.cc
 TESTUSER="$($WBINFO -u) | grep 'dhcpduser')"
 if [ -z "${TESTUSER}" ]; then
-    logger "No AD dhcp user exists, need to create it first.. exiting."
-    logger "you can do this by typing the following commands"
-    logger "kinit Administrator@${REALM}"
-    logger "samba-tool user create dhcpduser --random-password --description=\"Unprivileged user for DNS updates via ISC DHCP server\""
-    logger "samba-tool user setexpiry dhcpduser --noexpiry"
-    logger "samba-tool group addmembers DnsAdmins dhcpduser"
+    msg "No AD dhcp user exists, need to create it first.. exiting."
+    msg "you can do this by typing the following commands"
+    msg "kinit Administrator@${REALM}"
+    msg "samba-tool user create dhcpduser --random-password --description=\"Unprivileged user for DNS updates via ISC DHCP server\""
+    msg "samba-tool user setexpiry dhcpduser --noexpiry"
+    msg "samba-tool group addmembers DnsAdmins dhcpduser"
     exit 1
 fi
 

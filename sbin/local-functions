@@ -18,6 +18,8 @@ screen="/dev/null"
 mailTo="jmedin@joy.com"
 progName="$(/usr/bin/basename "$0")"
 hostname="$(/bin/hostname)"
+#hostdomain="$(/bin/hostname -f)"
+hostdomain="jmsh-home.com"
 
 log_init()
 {
@@ -125,11 +127,13 @@ mail()
 		log "mail using /usr/local/bin/sendEmail"
 		log "mail with subject=$subject, to=$to"
 		/usr/local/bin/sendEmail \
-			-f root@$(/bin/hostname -f) \
+			-f root@${hostdomain} \
                         -t "$to" \
                         -s smtp.dodo.com \
 			-o message-file=/dev/stdin \
                         -u "$subject"
+	else
+		log "no mail program found"
         fi
 }
 
