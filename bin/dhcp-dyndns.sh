@@ -21,9 +21,42 @@ msg()
 	then
         	echo "$(/bin/date "+%b %d %H:%M:%S"):" "$@"
 	else
-        	logger "$@"
+        	logger -t DHCP-DYNDNS  "$@"
 	fi
 }
+
+
+debug()
+{
+	local debuglevel="$1"
+	shift
+
+	[ "$debuglevel" -le "$DEBUG" ] && msg "$@"
+}
+
+#
+# Process command line args
+#
+# -d = increase debug level DEBUG
+#
+DEBUG="0"
+for arg in "$@"
+do
+	case "$arg" in
+	"-d"*)
+		arg="$1"
+		arg="${arg#-d}"
+		(( DEBUG = DEBUG + 1 ))
+		shift
+
+		if [ -z "${arg//d/}" ]; then
+			arg="${#arg}"
+			(( DEBUG = DEBUG + arg ))
+		fi
+		;;
+	*)	break;;
+	esac
+done
 
 # DNS domain
 domain=$(hostname -d)
@@ -100,7 +133,7 @@ if [ "$?" != "0" ]; then
     logger "${test} [dyndns] : Getting new ticket, old one has expired"
     kinit -F -k -t /etc/dhcpduser.keytab -c /tmp/dhcp-dyndns.cc "${SETPRINCIPAL}"
     if [ "$?" != "0" ]; then
-        logger "${test} [dyndns] : dhcpd kinit for dynamic DNS failed"
+        msg "${test} [dyndns] : dhcpd kinit for dynamic DNS failed"
         exit 1;
     fi
 fi
@@ -139,6 +172,7 @@ update add ${name}.${domain} 3600 A ${ip}
 send
 UPDATE
 result1=$?
+debug 1 "update delete ${name}.${domain} 3600 A, update add ${name}.${domain} 3600 A ${ip}, result=$result1"
 
 nsupdate -g ${NSUPDFLAGS} << UPDATE
 server 127.0.0.1
@@ -148,6 +182,7 @@ update add ${ptr} 3600 PTR ${name}.${domain}
 send
 UPDATE
 result2=$?
+debug 1 "update delete ${ptr} 3600 PTR, update add ${ptr} 3600 PTR ${name}.${domain}, result=$result2"
 ;;
 delete)
      _KERBEROS
@@ -159,6 +194,7 @@ update delete ${name}.${domain} 3600 A
 send
 UPDATE
 result1=$?
+debug 1 "update delete ${name}.${domain} 3600 A, result=$result1"
 
 nsupdate -g ${NSUPDFLAGS} << UPDATE
 server 127.0.0.1
@@ -167,6 +203,7 @@ update delete ${ptr} 3600 PTR
 send
 UPDATE
 result2=$?
+debug 1 "update delete ${ptr} 3600 PTR, result=$result2"
 ;;
 *)
 echo "Invalid action specified"
@@ -177,9 +214,9 @@ esac
 result="${result1}${result2}"
 
 if [ "${result}" != "00" ]; then
-    logger "DHCP-DNS Update failed: ${result}"
+    msg "DHCP-DNS Update failed: ${result}"
 else
-    logger "DHCP-DNS Update succeeded"
+    msg "DHCP-DNS Update succeeded"
 fi
 
 exit ${result}
