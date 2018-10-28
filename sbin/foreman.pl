@@ -67,6 +67,7 @@ class ForemanInventory(object):
         self.hostcollections = dict()  # host collections
         self.session = None   # Requests session
         self.config_paths = [
+            "/etc/ansible/ansible.cfg",
             "/etc/ansible/foreman.ini",
             os.path.dirname(os.path.realpath(__file__)) + '/foreman.ini',
         ]
@@ -82,10 +83,29 @@ class ForemanInventory(object):
 
         # Foreman API related
         try:
-            self.foreman_url = config.get('foreman', 'url')
-            self.foreman_user = config.get('foreman', 'user')
-            self.foreman_pw = config.get('foreman', 'password', raw=True)
-            self.foreman_ssl_verify = config.getboolean('foreman', 'ssl_verify')
+
+            self.foreman_url = config.get('callback_foreman', 'url')
+            self.foreman_user = config.get('callback_foreman', 'user')
+            self.foreman_pw = config.get('callback_foreman', 'password', raw=True)
+            self.foreman_ssl_verify = config.getboolean('callback_foreman', 'ssl_verify')
+
+            self.FOREMAN_SSL_CERT = (config.get('callback_foreman','ssl_cert'), config.get('callback_foreman','ssl_key'))
+
+	    #
+	    # No SSL verift, then disable SSL cert warings
+	    #
+	    if not self.foreman_ssl_verify:
+	        requests.packages.urllib3.disable_warnings()
+
+            if self.foreman_url.startswith('https://'):
+                if not os.path.exists(self.FOREMAN_SSL_CERT[0]):
+                    print('FOREMAN_SSL_CERT %s not found.' % self.FOREMAN_SSL_CERT[0])
+		    return False
+
+            if not os.path.exists(self.FOREMAN_SSL_CERT[1]):
+                print('FOREMAN_SSL_KEY %s not found.' % self.FOREMAN_SSL_CERT[1])
+		return False
+
         except (ConfigParser.NoOptionError, ConfigParser.NoSectionError) as e:
             print("Error parsing configuration: %s" % e, file=sys.stderr)
             return False
@@ -124,6 +144,17 @@ class ForemanInventory(object):
         except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
             self.host_filters = None
 
+        # Puppet related
+        try:
+            self.puppet_prefix = config.get('puppet', 'puppet_prefix')
+        except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
+            self.puppet_prefix = "puppet"
+
+        try:
+            self.scan_new_hosts = config.getboolean('ansible', 'scan_new_hosts')
+        except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
+            self.scan_new_hosts = False
+
         # Cache related
         try:
             cache_path = os.path.expanduser(config.get('cache', 'path'))
@@ -141,7 +172,7 @@ class ForemanInventory(object):
             self.cache_max_age = 60
         try:
             self.scan_new_hosts = config.getboolean('cache', 'scan_new_hosts')
-        except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
+        except (ConfigParser.NoOptielf.FOREMAN_SSL_CERTself.FOREMAN_SSL_CERTnError, ConfigParser.NoSectionError):
             self.scan_new_hosts = False
 
         return True
@@ -159,7 +190,8 @@ class ForemanInventory(object):
     def _get_session(self):
         if not self.session:
             self.session = requests.session()
-            self.session.auth = HTTPBasicAuth(self.foreman_user, self.foreman_pw)
+	    self.session.auth = HTTPBasicAuth(self.foreman_user, self.foreman_pw)
+            self.session.cert = self.FOREMAN_SSL_CERT
             self.session.verify = self.foreman_ssl_verify
         return self.session
 
@@ -172,6 +204,7 @@ class ForemanInventory(object):
         results = []
         s = self._get_session()
         while True:
+
             params['page'] = page
             ret = s.get(url, params=params)
             if ignore_errors and ret.status_code in ignore_errors:
@@ -198,7 +231,6 @@ class ForemanInventory(object):
 
     def _get_hosts(self):
         url = "%s/api/v2/hosts" % self.foreman_url
-
         params = {}
         if self.host_filters:
             params['search'] = self.host_filters
