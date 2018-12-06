@@ -32,3 +32,17 @@
 
 # heyu
 /bin/heyu
+
+# esptool
+*.pyc
+espefuse.py
+esptool.py
+frp.py
+frpc.py
+frps.py
+capture.bin
+espsecure.py
+/lib
+
+# bashgitprompt
+bash-git-prompt

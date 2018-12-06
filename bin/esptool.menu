@@ -1,0 +1,41 @@
+
+echo
+echo REF: https://forums.homeseer.com/forum/lighting-primary-technology-plug-ins/lighting-primary-technology-discussion/mcsmqtt-michael-mcsharry/109895-sonoff-basic-wifi-flashing-via-esp-tools
+echo OpenMQTTGateway: https://github.com/1technophile/OpenMQTTGateway/wiki/Sonoff-RFB
+echo OpenMQTTGateway: https://community.openhab.org/t/esp8266-based-433mhz-ir-gateway-bidirectional-with-mqtt-openmqttgateway/14209
+echo OpenMQTTGateway download link: https://github.com/1technophile/OpenMQTTGateway/releases
+echo
+
+ans=0
+
+while [ "$ans" != q ]
+do
+	echo
+	echo "e) erase"
+	echo "b) write sonoff.bin"
+	echo "c) write sonoff-classic.bin"
+	echo "cc) start cutecom"
+	echo "EasyESP) EasyESP, passwd: configesp"
+	echo "OMG) OpenMQTTGateway, password: your_password"
+	echo
+	echo "q) quit"
+	echo
+	echo " commands: sleep 1, ssid DSL-JMSH, password"
+	echo " info: ipaddress, status 7"
+	echo " info: rf bridge firmware, type \"RfRaw AAB155\""
+	echo
+	echo -n "which ? "
+
+	read ans
+
+	case "$ans" in
+	"e")	esptool.py --port /dev/ttyUSB0 erase_flash;;
+	"b")	esptool.py --port /dev/ttyUSB0 write_flash -fs 1MB -fm dout 0x0 sonoff.bin;;
+	"c")	esptool.py --port /dev/ttyUSB0 write_flash -fs 1MB -fm dout 0x0 sonoff-classic.bin;;
+	"EasyESP")	esptool.py --port /dev/ttyUSB0 write_flash -fs 1MB -fm dout 0x0 /home/jmedin/Downloads/rfbridge/ESPEasy_mega-20181204/bin/ESP_Easy_mega-20181204_normal_ESP8285_1024.bin;;
+	"OMG")	esptool.py --port /dev/ttyUSB0 write_flash -fs 1MB -fm dout 0x0 /home/jmedin/Downloads/rfbridge/OpenMQTTGateway.ino.bin;;
+	"cc")	cutecom&;;
+	"q")	;;
+	*)	echo unknown option
+	esac
+done
