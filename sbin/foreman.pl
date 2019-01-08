@@ -29,6 +29,8 @@ except ImportError:
     # Python 3 version
     import configparser as ConfigParser
 import json
+import yaml
+import pipes
 import argparse
 import copy
 import os
@@ -44,8 +46,8 @@ if LooseVersion(requests.__version__) < LooseVersion('1.1.0'):
     print('This script requires python-requests 1.1 as a minimum version')
     sys.exit(1)
 
-from requests.auth import HTTPBasicAuth
-
+#from requests.auth import HTTPBasicAuth
+import requests
 
 def json_format_dict(data, pretty=False):
     """Converts a dict to a JSON object and dumps it as a formatted string"""
@@ -63,6 +65,7 @@ class ForemanInventory(object):
         self.cache = dict()   # Details about hosts in the inventory
         self.params = dict()  # Params of each host
         self.facts = dict()   # Facts of each host
+        self.puppet = dict()  # Puppet YAML of each host
         self.hostgroups = dict()  # host groups
         self.hostcollections = dict()  # host collections
         self.session = None   # Requests session
@@ -76,7 +79,7 @@ class ForemanInventory(object):
             self.config_paths.append(os.path.expanduser(os.path.expandvars(env_value)))
 
     def read_settings(self):
-        """Reads the settings from the foreman.ini file"""
+        """Reads the settings from the ansible.cfg and foreman.ini files"""
 
         config = ConfigParser.SafeConfigParser()
         config.read(self.config_paths)
@@ -89,6 +92,9 @@ class ForemanInventory(object):
             self.foreman_pw = config.get('callback_foreman', 'password', raw=True)
             self.foreman_ssl_verify = config.getboolean('callback_foreman', 'ssl_verify')
 
+	    # The CA to veryfy the SSL request
+            self.foreman_verify_certs = config.get('callback_foreman', 'verify_certs')
+
             self.FOREMAN_SSL_CERT = (config.get('callback_foreman','ssl_cert'), config.get('callback_foreman','ssl_key'))
 
 	    #
@@ -100,11 +106,11 @@ class ForemanInventory(object):
             if self.foreman_url.startswith('https://'):
                 if not os.path.exists(self.FOREMAN_SSL_CERT[0]):
                     print('FOREMAN_SSL_CERT %s not found.' % self.FOREMAN_SSL_CERT[0])
+                    print('FOREMAN_SSL_CERT %s not found.' % self.FOREMAN_SSL_CERT[0])
 		    return False
-
-            if not os.path.exists(self.FOREMAN_SSL_CERT[1]):
-                print('FOREMAN_SSL_KEY %s not found.' % self.FOREMAN_SSL_CERT[1])
-		return False
+                if not os.path.exists(self.FOREMAN_SSL_CERT[1]):
+                    print('FOREMAN_SSL_KEY %s not found.' % self.FOREMAN_SSL_CERT[1])
+		    return False
 
         except (ConfigParser.NoOptionError, ConfigParser.NoSectionError) as e:
             print("Error parsing configuration: %s" % e, file=sys.stderr)
@@ -151,9 +157,14 @@ class ForemanInventory(object):
             self.puppet_prefix = "puppet"
 
         try:
-            self.scan_new_hosts = config.getboolean('ansible', 'scan_new_hosts')
+            self.want_puppet = config.getboolean('puppet', 'want_puppet')
         except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
-            self.scan_new_hosts = False
+            self.want_puppet = False
+
+        try:
+            self.puppet_node_rb = config.get('puppet', 'puppet_node_rb')
+        except (ConfigParser.NoOptionError, ConfigParser.NoSectionError):
+            self.puppet_node_rb = "/etc/puppetlabs/puppet/node.rb"
 
         # Cache related
         try:
@@ -165,6 +176,7 @@ class ForemanInventory(object):
         self.cache_path_inventory = cache_path + "/%s.index" % script
         self.cache_path_params = cache_path + "/%s.params" % script
         self.cache_path_facts = cache_path + "/%s.facts" % script
+        self.cache_path_puppet = cache_path + "/%s.puppet" % script
         self.cache_path_hostcollections = cache_path + "/%s.hostcollections" % script
         try:
             self.cache_max_age = config.getint('cache', 'max_age')
@@ -190,9 +202,13 @@ class ForemanInventory(object):
     def _get_session(self):
         if not self.session:
             self.session = requests.session()
-	    self.session.auth = HTTPBasicAuth(self.foreman_user, self.foreman_pw)
+	    self.session.auth = requests.auth.HTTPBasicAuth(self.foreman_user, self.foreman_pw)
             self.session.cert = self.FOREMAN_SSL_CERT
-            self.session.verify = self.foreman_ssl_verify
+	    # If we want to veryfy and we have a CA file specified, then use it
+            if self.foreman_ssl_verify and os.path.exists(self.foreman_verify_certs):
+                self.session.verify = self.foreman_verify_certs
+	    else:
+                self.session.verify = self.foreman_ssl_verify
         return self.session
 
     def _get_json(self, url, ignore_errors=None, params=None):
@@ -240,6 +256,21 @@ class ForemanInventory(object):
     def _get_host_data_by_id(self, hid):
         url = "%s/api/v2/hosts/%s" % (self.foreman_url, hid)
         return self._get_json(url)
+
+    def _get_puppet_data_by_host(self, dns_name):
+        puppet = {}
+
+	cmd = self.puppet_node_rb + " " + dns_name
+	#print ( "*** cmd is ", cmd )
+
+	#t = pipes.Template()
+	#t.append(cmd, 'f-')
+	#f = t.open('pipefile', 'r')
+	#f.close()
+	#open('pipefile').read()
+	#puppet = pipefile.read
+
+	return puppet
 
     def _get_facts_by_id(self, hid):
         url = "%s/api/v2/hosts/%s/facts" % (self.foreman_url, hid)
@@ -309,8 +340,13 @@ class ForemanInventory(object):
                 continue
             dns_name = host['name']
 
+	    #print ("*** host = ", dns_name)
+
             host_data = self._get_host_data_by_id(host['id'])
             host_params = host_data.get('all_parameters', {})
+
+	    if self.want_puppet:
+	        host_puppet = self._get_puppet_data_by_host(dns_name)
 
             # Create ansible groups for hostgroup
             group = 'hostgroup'
