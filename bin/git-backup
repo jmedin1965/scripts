@@ -28,7 +28,7 @@ main()
 
 	temp_repo="$($basename "$pwd").tmp"
 	parent_repo="$($dirname "$GIT_DIR")"
-	bare_repo="${backup_dir}${pwd}.bare"
+	bare_repo="${backup_dir}${pwd}.git"
 	uid="$($stat -c "%U" . )"
 	gid="$($stat -c "%G" . )"
 
