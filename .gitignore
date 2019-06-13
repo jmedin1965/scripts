@@ -4,6 +4,7 @@ upstream.sh
 /CouchPotatoServer
 /git-repos
 .nfs00000000000*
+/share
 
 # guacamole
 /include/guacamole
