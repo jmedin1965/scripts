@@ -1,5 +1,5 @@
 upstream.sh
-bin/lastpass-ssh
+.*.swp
 
 /man
 /CouchPotatoServer

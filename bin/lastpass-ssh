@@ -1,0 +1,111 @@
+#!/usr/bin/env ruby
+# Copyright 2015 Wojciech A. Koszek <wojciech@koszek.com>
+#
+# Inspired by:
+#
+# https://gist.github.com/davidblewett/53047c4c7757b663c11b
+# http://pentestmonkey.net/blog/ssh-with-no-tty
+#
+# 1st didn't work for me out of the box on MacOSX. I made this script instead to
+# handle both adding all keys and passing the passphrase to an ssh-add.
+require 'optparse'
+
+fn_abs = File.absolute_path($0)
+
+lpass_exists = system("command -v lpass 2>&1 > /dev/null")
+if not lpass_exists then
+	print "You don't have LastPass CLI installed. Do:\n"
+	print "brew install lpass    # on Mac\n"
+	print "apt-get install lpass # on Ubuntu\n"
+	exit 64
+end
+
+g_debug = false
+g_keys_path = ENV["HOME"] + "/.ssh"
+g_keys_to_add = nil
+ARGV.options do |opts|
+	opts.on("-k", "--key=[x,y,z]", Array) {
+		|a| g_keys_to_add = a
+	}
+	opts.on("-P", "--keys-path=val", String) {
+		|s| g_keys_path = s
+	}
+	opts.on("-d", "--debug") {
+		g_debug = true
+	}
+	opts.on("-h", "--help") {
+		print "lastpass-ssh:\n"
+		print "  --keys-path <path>     use <path> instead of ~/.ssh"
+		print "  --help                 print this help\n"
+		exit 0
+	}
+	opts.parse!
+end
+
+if g_debug then
+	print "DBG: #{g_keys_to_add}\n"
+	print "DBG: #{g_keys_path}\n"
+end
+
+if not g_keys_path then
+	print "you must pass path to --keys-path\n"
+	exit 64
+end
+
+if ENV["KEY_ID"] then
+	r = `lpass show --field Passphrase #{ENV['KEY_ID']}`
+	print r
+else
+	# Lines will be e.g.: 'Secure Notes\SSH/bitbucket [id: 5505843262]'
+	raw_lines = `lpass ls "Secure Notes\\SSH"`
+	lines = raw_lines.split("\n").select { |l| l if l =~ /^Secure/ }[1..-1]
+
+	# Check if we got anything from `lpass`
+	if lines == nil or lines.length <= 0 then
+		print "Something looks wrong. Maybe you don't have any Secure Notes yet?\n"
+		print "In that case, take a look at lastpass-ssh README file\n"
+		exit 64
+	end
+
+	label_printed = false
+	# Use key's name, make path out of it, attempt to add it by its ID
+	lines.each.map{ |l| l.scan(/[\w_\.]+/)}.each do |sec, notes, ssh, key_name, id_str, key_id|
+		print "sec: #{sec}\n"
+		print "notes: #{notes}\n"
+		print "ssh: #{ssh}\n"
+		print "key_name: #{key_name}\n"
+		print "id_str: #{id_str}\n"
+		print "key_id: #{key_id}\n"
+		print "\n"
+		if g_keys_to_add != nil then
+			if not label_printed then
+				print "# Requested to add key #{g_keys_to_add}\n"
+				label_printed = true
+			end
+			if not g_keys_to_add.include?(key_name) then
+				print "Skipping #{key_name}\n"
+				next
+			end
+		end
+		fork do
+			ENV["KEY_ID"] = key_id
+			ENV["SSH_ASKPASS"] = fn_abs
+			ENV["DISPLAY"] = "foo"
+			print "LastPass key ID #{key_id} name #{key_name} "
+			if key_name =~ /^lpass_/ then
+				key_body = `lpass show --field=Passphrase #{key_id}`
+				if key_body.strip().empty? then
+					print "LastPass 'Notes' section of key " +
+						"'#{key_name}' is empty (no key defined)!\n"
+					exit 1
+				end
+				#exec "lpass show --notes #{key_id} | ssh-add -"
+				exec "echo #{key_body} | ssh-add -"
+			else
+				exec "ssh-add #{g_keys_path}/#{key_name} < /dev/null"
+			end
+
+		end
+		Process.wait
+	end
+end
