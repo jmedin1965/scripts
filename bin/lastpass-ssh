@@ -45,6 +45,8 @@ end
 if g_debug then
 	print "DBG: #{g_keys_to_add}\n"
 	print "DBG: #{g_keys_path}\n"
+	print "SSH_AUTH_SOCK=#{ENV["SSH_AUTH_SOCK"]}\n"
+	print "SSH_AGENT_PID=#{ENV["SSH_AGENT_PID"]}\n"
 end
 
 if not g_keys_path then
@@ -55,7 +57,16 @@ end
 if ENV["KEY_ID"] then
 	r = `lpass show --field Passphrase #{ENV['KEY_ID']}`
 	print r
+elsif !ENV["SSH_AUTH_SOCK"] or !ENV["SSH_AGENT_PID"] then
+	print "\nssh-add environment not set.\nDid you run;\n  eval `ssh-agent`\nfirst?\n\n"
+	exit 1
 else
+	if g_debug then
+		print "env #{ENV["USERNAME"]}\n"
+		print "SSH_AUTH_SOCK=#{ENV["SSH_AUTH_SOCK"]}\n"
+		print "SSH_AGENT_PID=#{ENV["SSH_AGENT_PID"]}\n"
+	end
+
 	# Lines will be e.g.: 'Secure Notes\SSH/bitbucket [id: 5505843262]'
 	raw_lines = `lpass ls "Secure Notes\\SSH"`
 	lines = raw_lines.split("\n").select { |l| l if l =~ /^Secure/ }[1..-1]
@@ -93,9 +104,9 @@ else
 					exit 1
 				end
 				#exec "lpass show --notes #{key_id} | ssh-add -"
-				exec "eval `ssh-agent` && echo #{key_body} | ssh-add -"
+				exec "echo #{key_body} | ssh-add -"
 			else
-				exec "eval `ssh-agent` && ssh-add #{g_keys_path}/#{key_name} < /dev/null"
+				exec "ssh-add #{g_keys_path}/#{key_name} < /dev/null"
 			end
 
 		end
