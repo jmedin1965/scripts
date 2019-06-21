@@ -9,4 +9,51 @@
 #	name = Juan Medin
 #	email = jmedin1965@gmail.com
 
-/usr/bin/meld "$2" "$5"
+#
+# New way of doing this is as follows
+#
+#[diff]
+#        tool = vimdiff
+#[difftool]
+#        prompt = false
+#[difftool "vimdiff"]
+#        cmd = /usr/local/bin/meld-for-git "$REMOTE" "$LOCAL"
+#[alias]
+#        d = difftool
+#
+#
+# and it is used by calling git d
+
+
+tool=""
+if [ -x /usr/bin/meld ]
+then
+	tool="/usr/bin/meld"
+	toolname="meld"
+elif [ -x /usr/bin/vimdiff ]
+then
+	tool="/usr/bin/vimdiff"
+	toolname="vimdiff"
+else
+	echo "Error: Please install meld of vimdiff" > /dev/stderr
+	exit 1
+fi
+
+if [ $# == 0 ]
+then
+	git config --global diff.tool $toolname
+	git config --global merge.tool $toolname
+	git config --global difftool.prompt false
+	git config --global alias.d difftool
+	echo "difftoll has been set up as $toolname"
+	echo "use it as"
+	echo "  git difftool"
+	echo "or"
+	echo "  git d"
+	echo
+else
+	[ $# -gt 2 ] && set -- "$2" "$5" && echo yes
+
+	"$tool" "$1" "$2"
+fi
+

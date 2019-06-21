@@ -70,13 +70,6 @@ else
 	label_printed = false
 	# Use key's name, make path out of it, attempt to add it by its ID
 	lines.each.map{ |l| l.scan(/[\w_\.]+/)}.each do |sec, notes, ssh, key_name, id_str, key_id|
-		print "sec: #{sec}\n"
-		print "notes: #{notes}\n"
-		print "ssh: #{ssh}\n"
-		print "key_name: #{key_name}\n"
-		print "id_str: #{id_str}\n"
-		print "key_id: #{key_id}\n"
-		print "\n"
 		if g_keys_to_add != nil then
 			if not label_printed then
 				print "# Requested to add key #{g_keys_to_add}\n"
@@ -100,9 +93,9 @@ else
 					exit 1
 				end
 				#exec "lpass show --notes #{key_id} | ssh-add -"
-				exec "echo #{key_body} | ssh-add -"
+				exec "eval `ssh-agent` && echo #{key_body} | ssh-add -"
 			else
-				exec "ssh-add #{g_keys_path}/#{key_name} < /dev/null"
+				exec "eval `ssh-agent` && ssh-add #{g_keys_path}/#{key_name} < /dev/null"
 			end
 
 		end
