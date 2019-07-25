@@ -9,7 +9,7 @@
 git_repo_local="/usr/local/scripts"
 if [ ! -d "${git_repo_local}/.git" ]; then
 	cd /usr/local
-	/usr/bin/git clone https://jmedin1965@github.com/jmedin1965/local.git scripts
+	/usr/bin/git clone https://jmedin1965@github.com/jmedin1965/scripts.git
 fi
 
 # add to path
