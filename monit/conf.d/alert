@@ -1,0 +1,4 @@
+set mailserver smtp.dodo.com.au               # primary mailserver
+set mail-format { from: monit@openflixr.jmsh-home.com }
+set alert jmedin@joy.com not on { instance }
+ 
