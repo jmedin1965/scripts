@@ -38,8 +38,6 @@ rotate_logfile() {
     [ -e \$logbase.log ] && mv -f \$logbase.log \$logbase.1.log
 }
 
-rotate_logfile
-
 # redirect stdio
 exec > \$logfile 2>&1
 
@@ -47,6 +45,28 @@ echo
 echo \`date\` \": Executing \'\$0 \$*\'\"
 
 END
+
+	/bin/cat << END > "$scripts//poweron-vm-default.d/10-apt-autoremove"
+#!/bin/bash
+
+. \$(dirname "\$0")/../userscripts.subr
+
+echo "doing apt autoremove"
+/usr/bin/apt autoremove
+echo "apt autoremove done"
+
+END
+	/bin/chmod 755 "$scripts//poweron-vm-default.d/10-apt-autoremove"
+
+	/bin/cat << END > "$scripts//poweron-vm-default.d/00-rotate-logfile"
+#!/bin/bash
+
+. \$(dirname "\$0")/../userscripts.subr
+
+rotate_logfile
+
+END
+	/bin/chmod 755 "$scripts//poweron-vm-default.d/00-rotate-logfile"
 
 	/bin/cat << END > "$scripts/poweroff-vm-default.d/99-delay-shutdown"
 #!/bin/bash
@@ -66,7 +86,7 @@ fi
 
 END
 	/bin/chmod 755 "$scripts/poweroff-vm-default.d/99-delay-shutdown"
-	/bin/ln -s "../poweroff-vm-default.d/99-delay-shutdown" "$scripts/suspend-vm-default.d"
+	/bin/ln -fs "../poweroff-vm-default.d/99-delay-shutdown" "$scripts/suspend-vm-default.d"
 
 else
 	log "/etc/vmware-tools/scripts: dir does not exist, exiting"
