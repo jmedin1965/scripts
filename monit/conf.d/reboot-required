@@ -1,0 +1,4 @@
+check file reboot-required
+    with path /var/run/reboot-required
+    every "* 2 * * 0"
+        if exist then exec "/sbin/reboot"
