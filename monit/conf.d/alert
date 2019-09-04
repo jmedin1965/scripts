@@ -1,4 +1,11 @@
+
+set daemon 60 with start delay 240
+
 set mailserver smtp.dodo.com.au               # primary mailserver
 set mail-format { from: monit@openflixr.jmsh-home.com }
 set alert jmedin@joy.com not on { instance }
+
  
+set httpd port 2812 and
+    use address localhost  # only accept connection from localhost
+    allow localhost        # allow localhost to connect to the server and
