@@ -59,7 +59,7 @@ do
 done
 
 # DNS domain
-domain=$(hostname -d)
+domain=$(/bin/hostname -d)
 if [ -z ${domain} ]; then
     msg "Cannot obtain domain name, is DNS set up correctly?"
     msg "Cannot continue... Exiting."
@@ -111,6 +111,8 @@ action=$1
 ip=$2
 DHCID=$3
 name=${4%%.*}
+supplied_domain=${4#*.}
+[ "$supplied_domain" == "$4" ] && supplied_domain="$domain"
 
 usage()
 {
@@ -167,22 +169,22 @@ add)
 nsupdate -g ${NSUPDFLAGS} << UPDATE
 server 127.0.0.1
 realm ${REALM}
-update delete ${name}.${domain} 3600 A
-update add ${name}.${domain} 3600 A ${ip}
+update delete ${name}.${supplied_domain} 3600 A
+update add ${name}.${supplied_domain} 3600 A ${ip}
 send
 UPDATE
 result1=$?
-debug 1 "update delete ${name}.${domain} 3600 A, update add ${name}.${domain} 3600 A ${ip}, result=$result1"
+debug 1 "update delete ${name}.${supplied_domain} 3600 A, update add ${name}.${supplied_domain} 3600 A ${ip}, result=$result1"
 
 nsupdate -g ${NSUPDFLAGS} << UPDATE
 server 127.0.0.1
 realm ${REALM}
 update delete ${ptr} 3600 PTR
-update add ${ptr} 3600 PTR ${name}.${domain}
+update add ${ptr} 3600 PTR ${name}.${supplied_domain}
 send
 UPDATE
 result2=$?
-debug 1 "update delete ${ptr} 3600 PTR, update add ${ptr} 3600 PTR ${name}.${domain}, result=$result2"
+debug 1 "update delete ${ptr} 3600 PTR, update add ${ptr} 3600 PTR ${name}.${supplied_domain}, result=$result2"
 ;;
 delete)
      _KERBEROS
@@ -190,11 +192,11 @@ delete)
 nsupdate -g ${NSUPDFLAGS} << UPDATE
 server 127.0.0.1
 realm ${REALM}
-update delete ${name}.${domain} 3600 A
+update delete ${name}.${supplied_domain} 3600 A
 send
 UPDATE
 result1=$?
-debug 1 "update delete ${name}.${domain} 3600 A, result=$result1"
+debug 1 "update delete ${name}.${supplied_domain} 3600 A, result=$result1"
 
 nsupdate -g ${NSUPDFLAGS} << UPDATE
 server 127.0.0.1
