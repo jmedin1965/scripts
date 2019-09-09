@@ -143,7 +143,7 @@ fi
 }
 
 # Exit if no ip address or mac-address
-if [ -z "${ip}" ] || [ -z "${DHCID}" ]; then
+if [ -z "${ip}" ]; then  #|| [ -z "${DHCID}" ]; then
     usage
     exit 1
 fi
