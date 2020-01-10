@@ -113,6 +113,8 @@ DHCID=$3
 name=${4%%.*}
 supplied_domain=${4#*.}
 [ "$supplied_domain" == "$4" ] && supplied_domain="$domain"
+supplied_domain=".$supplied_domain"
+
 
 usage()
 {
@@ -150,8 +152,17 @@ fi
 
 # Exit if no computer name supplied, unless the action is 'delete'
 if [ "${name}" = "" ]; then
-    if [ "${action}" = "delete" ]; then
-        name=$(host -t PTR "${ip}" | awk '{print $NF}' | awk -F '.' '{print $1}')
+    if [ "${action%%-*}" = "delete" ]; then
+        if [ "$action" = "delete" ]; then
+            name=$(host -t PTR "${ip}")
+	    if [ $? != 0 ]; then
+		name=""
+	    else
+        	#name=$(echo "$name" | awk '{print $NF}' | awk -F '.' '{print $1}')
+        	name=$(echo "$name" | awk '{print $NF}')
+		supplied_domain=""
+	    fi
+       fi
     else
         usage
         exit 1;
@@ -162,51 +173,98 @@ fi
 ptr=$(echo ${ip} | awk -F '.' '{print $4"."$3"."$2"."$1".in-addr.arpa"}')
 
 ## nsupdate ##
+result1=""
+result2=""
+type="A"
 case "${action}" in
+add-cname)
+     ## the $ip in this case is the second arg, which is the CNAME
+    type="CNAME"
+    _KERBEROS
+
+        if [ -n "$name" ]; then
+            nsupdate -g ${NSUPDFLAGS} << UPDATE
+server 127.0.0.1
+realm ${REALM}
+update add ${name}${supplied_domain} 3600 CNAME ${ip}
+send
+UPDATE
+            result1=$?
+            debug 1 "update add ${name}${supplied_domain} 3600 CNAME ${ip}, result=$result1"
+        fi
+        ;;
 add)
     _KERBEROS
 
-nsupdate -g ${NSUPDFLAGS} << UPDATE
+        if [ -n "$name" ]; then
+            nsupdate -g ${NSUPDFLAGS} << UPDATE
 server 127.0.0.1
 realm ${REALM}
-update delete ${name}.${supplied_domain} 3600 A
-update add ${name}.${supplied_domain} 3600 A ${ip}
+update delete ${name}${supplied_domain} 3600 A
 send
 UPDATE
-result1=$?
-debug 1 "update delete ${name}.${supplied_domain} 3600 A, update add ${name}.${supplied_domain} 3600 A ${ip}, result=$result1"
+            debug 1 "update delete ${name}${supplied_domain} 3600 A, result=$?"
+            nsupdate -g ${NSUPDFLAGS} << UPDATE
+server 127.0.0.1
+realm ${REALM}
+update add ${name}${supplied_domain} 3600 A ${ip}
+send
+UPDATE
+            result1=$?
+            debug 1 "update add ${name}${supplied_domain} 3600 A ${ip}, result=$result1"
+        fi
 
-nsupdate -g ${NSUPDFLAGS} << UPDATE
+        nsupdate -g ${NSUPDFLAGS} << UPDATE
 server 127.0.0.1
 realm ${REALM}
 update delete ${ptr} 3600 PTR
-update add ${ptr} 3600 PTR ${name}.${supplied_domain}
+UPDATE
+        debug 1 "update delete ${ptr} 3600 PTR, result=$?"
+        nsupdate -g ${NSUPDFLAGS} << UPDATE
+server 127.0.0.1
+realm ${REALM}
+update add ${ptr} 3600 PTR ${name}${supplied_domain}
 send
 UPDATE
-result2=$?
-debug 1 "update delete ${ptr} 3600 PTR, update add ${ptr} 3600 PTR ${name}.${supplied_domain}, result=$result2"
-;;
+        result2=$?
+        debug 1 "update add ${ptr} 3600 PTR ${name}${supplied_domain}, result=$result2"
+        ;;
+delete-cname)
+     ## the $ip in this case is the second arg, which is the CNAME
+     type="CNAME"
+     _KERBEROS
+
+        nsupdate -g ${NSUPDFLAGS} << UPDATE
+server 127.0.0.1
+realm ${REALM}
+update delete ${ip} 3600 CNAME
+send
+UPDATE
+        result1=$?
+        debug 1 "update delete ${ip} 3600 CNAME, result=$result1"
+        ;;
 delete)
      _KERBEROS
 
-nsupdate -g ${NSUPDFLAGS} << UPDATE
+        if [ -n "$name" ]; then
+            nsupdate -g ${NSUPDFLAGS} << UPDATE
 server 127.0.0.1
 realm ${REALM}
-update delete ${name}.${supplied_domain} 3600 A
+update delete ${name}${supplied_domain} 3600 A
 send
 UPDATE
-result1=$?
-debug 1 "update delete ${name}.${supplied_domain} 3600 A, result=$result1"
-
-nsupdate -g ${NSUPDFLAGS} << UPDATE
+            result1=$?
+            debug 1 "update delete ${name}${supplied_domain} 3600 A, result=$result1"
+        fi
+        nsupdate -g ${NSUPDFLAGS} << UPDATE
 server 127.0.0.1
 realm ${REALM}
 update delete ${ptr} 3600 PTR
 send
 UPDATE
-result2=$?
-debug 1 "update delete ${ptr} 3600 PTR, result=$result2"
-;;
+        result2=$?
+        debug 1 "update delete ${ptr} 3600 PTR, result=$result2"
+        ;;
 *)
 echo "Invalid action specified"
 exit 103
@@ -215,11 +273,20 @@ esac
 
 result="${result1}${result2}"
 
-if [ "${result}" != "00" ]; then
-    msg "DHCP-DNS Update failed: ${result}"
-else
-    msg "DHCP-DNS Update succeeded"
+if [ -n "${result1}" ]; then
+    if [ "${result1}" != "0" ]; then
+        msg "DHCP-DNS $type Update failed: ${result}"
+    else
+        msg "DHCP-DNS $type Update succeeded"
+    fi
+fi
+if [ -n "${result2}" ]; then
+    if [ "${result2}" != "0" ]; then
+        msg "DHCP-DNS PTR Update failed: ${result}"
+    else
+        msg "DHCP-DNS PTR Update succeeded"
+    fi
 fi
 
-exit ${result}
+exit ${result1}
 
