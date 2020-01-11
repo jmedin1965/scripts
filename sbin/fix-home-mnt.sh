@@ -1,7 +1,7 @@
 #!/bin/bash
 
 
-if [ "$(mount | fgrep -c " /home ")" -gt 0 ]
+if [ "$(mount | fgrep " /home " | fgrep -c /dev/mapper/)" -gt 0 ]
 then
 	umount /home
 	lvremove /dev/vg00/home
