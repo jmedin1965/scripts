@@ -2,6 +2,19 @@
 
 main()
 {
+    info "remove subscription apt repos"
+    rm -f /etc/apt/sources.list.d/pmg-enterprise.list
+    rm -f /etc/apt/sources.list.d/pve-enterprise.list
+    info
+
+    if [ ! -x /usr/bin/lsb_release ]
+    then
+        info "installing lsb-release"
+        apt update
+        apt -y install lsb-release
+        info
+    fi
+
     codename="$(set -- $(/usr/bin/lsb_release -c); echo $2)"
     manufacturere="$(/usr/sbin/dmidecode -s system-manufacturer)"
 
@@ -34,11 +47,11 @@ main()
 
     if [ -e /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js ]
     then
-    info "remove the subscrion message"
-    sed -i.bak \
-        "s/data.status !== 'Active'/false/g" \
-        /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && \
-        systemctl restart pveproxy.service
+        info "remove the subscrion message"
+        sed -i.bak \
+            "s/data.status !== 'Active'/false/g" \
+            /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && \
+            systemctl restart pveproxy.service
     fi
 
     # set swappiness
@@ -52,7 +65,6 @@ main()
         echo "deb http://download.proxmox.com/debian/pve $codename pve-no-subscription" > \
             /etc/apt/sources.list.d/pve-install-repo.list
     fi
-    rm -f /etc/apt/sources.list.d/pve-enterprise.list
 
     # Proxmox Mail Gateway
     if [ -e /usr/bin/pmgversion ]
@@ -60,7 +72,6 @@ main()
         echo "deb http://download.proxmox.com/debian/pmg $codename pmg-no-subscription" > \
             /etc/apt/sources.list.d/pgm-install-repo.list
     fi
-    rm -f /etc/apt/sources.list.d/pgm-enterprise.list
 
     info "update and upgrade apt"
     apt update
@@ -69,7 +80,7 @@ main()
     info "manufacturere=$manufacturere, check if we are a virtual machine, install agent if we are."
     [ "$manufacturere" == QEMU ] && apt install qemu-guest-agent
 
-    extra_packages="vim tmux htop iotop ifupdown2 ethtool lsb-release liblz4-tool sysstat"
+    extra_packages="vim tmux htop iotop ifupdown2 ethtool liblz4-tool sysstat"
     info "Install extra packages: $extra_packages"
     apt install -y $extra_packages
 
@@ -89,30 +100,34 @@ main()
     sed -i -e 's/# eval/eval/g' ~/.bashrc
     sed -i -e 's/# alias ll/alias ll/g' ~/.bashrc
 
-    info updating lxd templates - pveam update
-    pveam update
-
-    info checking nested virtualisation
-    # REF https://forum.proxmox.com/threads/nested-virtualization.25996/
-    # REF https://pve.proxmox.com/wiki/Nested_Virtualization
-    echo "options kvm-amd nested=1" > /etc/modprobe.d/kvm-amd.conf
-    echo "options kvm-intel nested=Y" >> /etc/modprobe.d/kvm-intel.conf
-    if [ "$(/usr/bin/fgrep -e Y -e 1 -c /sys/module/kvm_intel/parameters/nested)" -gt 0 ]
+    # Proxmox
+    if [ -e /usr/bin/pveversion ]
     then
-	    info "  nested virtualisation is already on"
-    else
-	    if [ "$(/usr/sbin/lsmod | /usr/bin/fgrep -c kvm_intel)" -gt 0 ]
-	    then
-		    info "  we have an intel CPU"
-		    modprobe -r kvm_intel
-		    modprobe kvm_intel
-	    fi
-	    if [ "$(/usr/sbin/lsmod | /usr/bin/fgrep -c kvm_amd)" -gt 0 ]
-	    then
-		    info "  we have an amd CPU"
-		    modprobe -r kvm_amd
-		    modprobe kvm_amd
-	    fi
+        info updating lxd templates - pveam update
+        pveam update
+
+        info checking nested virtualisation
+        # REF https://forum.proxmox.com/threads/nested-virtualization.25996/
+        # REF https://pve.proxmox.com/wiki/Nested_Virtualization
+        echo "options kvm-amd nested=1" > /etc/modprobe.d/kvm-amd.conf
+        echo "options kvm-intel nested=Y" >> /etc/modprobe.d/kvm-intel.conf
+        if [ "$(/usr/bin/fgrep -e Y -e 1 -c /sys/module/kvm_intel/parameters/nested)" -gt 0 ]
+        then
+	        info "  nested virtualisation is already on"
+        else
+	        if [ "$(/usr/sbin/lsmod | /usr/bin/fgrep -c kvm_intel)" -gt 0 ]
+	        then
+		        info "  we have an intel CPU"
+    		    modprobe -r kvm_intel
+	    	    modprobe kvm_intel
+	        fi
+    	    if [ "$(/usr/sbin/lsmod | /usr/bin/fgrep -c kvm_amd)" -gt 0 ]
+	        then
+		        info "  we have an amd CPU"
+		        modprobe -r kvm_amd
+    		    modprobe kvm_amd
+	        fi
+        fi
     fi
 
     #
@@ -130,7 +145,7 @@ main()
 
 log()
 {
-	local date="$(/usr/bin/date +%d'-'%m'-'%y' '%H':'%M':'%S)" 
+	local date="$(/bin/date +%d'-'%m'-'%y' '%H':'%M':'%S)" 
 	echo "${date}:" "$@"
 }
 
