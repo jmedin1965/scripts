@@ -11,22 +11,17 @@ REF https://github.com/rharmonson/richtech/wiki/OSVDC-Series:-Root-Certificate-A
 
 ## install apache and php - NOT REQUIRED!
 
-    centOS 8 uses tomcat. If these are installed, dogtag instalation fails
-    yum install http php
+centOS 8 uses tomcat. If these are installed, dogtag instalation fails
 
 ## Configure firewall
 
 CentOS 8 used firewall-cmd
 
-    firewall-cmd --permanent --zone=public --add-service=http
-    firewall-cmd --permanent --zone=public --add-service=https
-
-    # Not this one, as it's not secure, it's http
-    #firewall-cmd --zone=public --add-port=8080/tcp
-    # this one is https
-    firewall-cmd --zone=public --add-port=8443/tcp
+    firewall-cmd --permanent --zone=public --add-port=8443/tcp
+    firewall-cmd --permanent --zone=public --remove-service=cockpit
 
     firewall-cmd --reload 
+    firewall-cmd --list-all
 
 ## Entropy
 
@@ -34,20 +29,32 @@ make sure quemu-guest-client is installed. Also add VirtIO RNG to the guest hard
 
     yum install qemu-guest-agent
 
+Make sure you have the VirtIO RING added to vm's hardware and reboot
+
 ## selinux
 
-need to set selinux to permissive to do the install
+need to set selinux to permissive to do the install, or probably not? I'm thinking that CentOS8 will
+hopefullt set selinux up properly. yes they did.
 
-    sudo setenforce 0
-    sudo sed -i 's/^SELINUX=.*/SELINUX=permissive/g' /etc/selinux/config
+    # no need for this
+    #sudo setenforce 0
+    #sudo sed -i 's/^SELINUX=.*/SELINUX=permissive/g' /etc/selinux/config
 
+## hosts file
+
+make sure hosts ip address in in /etc/hosts file
+
+    <ip address> <hostname.domain> <hostname>
 
 ## 389-ds-base pki-ca
+
+REF: https://www.techsupportpk.com/2020/04/how-to-set-up-389-directory-server-centos-rhel-8.html
 
     yum -y install @idm:DL1
     yum -y install 389-ds-base pki-ca
 
-    dnf -y module install 389-directory-server:stable/default
+unistall cockpit if you don't want to use it
+
     dscreate interactive
 
     systemctl enable dirsrv.target
@@ -71,6 +78,9 @@ during this install the version was 10.8.3 and this is the one that I found
 ## Setup Dogtag CA
 
     pkispawn -s CA
+
+if it fails and you need to remove, use
+    pkidestroy -s CA
 
     systemctl enable pki-tomcatd.target
     systemctl enable pki-tomcatd@

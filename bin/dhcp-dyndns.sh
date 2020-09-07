@@ -6,6 +6,8 @@
 # REF: https://wiki.samba.org/index.php/Configure_DHCP_to_update_DNS_records_with_BIND9
 # Version: 0.8.9
 
+# Has been heavily modified.
+
 # Uncomment the next line if using a self compiled Samba and adjust for your PREFIX
 PATH="/usr/local/samba/bin:/usr/local/samba/sbin:$PATH"
 BINDIR=$(samba -b | grep 'BINDIR' | grep -v 'SBINDIR' | awk '{print $NF}')

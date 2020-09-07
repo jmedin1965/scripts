@@ -164,6 +164,29 @@ main()
     		    modprobe kvm_amd
 	        fi
         fi
+
+        info limit zfs memory limit
+        mem="$( set -- $(/usr/bin/free --giga | /usr/bin/fgrep Mem:); echo $2 )"
+        limit_g="8"
+        if [ "$mem" -gt 31 ]
+        then
+            limit_g="16"
+        elif [ "$mem" -gt 15 ]
+        then
+            info limit zfs memory limit
+            limit_g="8"
+        fi
+        info "  limit set to ${limit}G"
+        limit=$(( limit_g * 1024 * 1024 * 1024 ))
+        info "  limit set to ${limit}"
+        cat > /etc/modprobe.d/zfs.conf <<-END
+#
+# REF: https://pve.proxmox.com/wiki/ZFS_on_Linux#_limit_zfs_memory_usage
+#
+# expr $limit_g \* 1024 \* 1024 \* 1024
+options zfs zfs_arc_max=$limit
+END
+        /usr/sbin/update-initramfs -u
         echo
     fi
 

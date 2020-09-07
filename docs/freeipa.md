@@ -3,110 +3,93 @@
 
 I've installed a standaline dogtag server to use an an off-line CA
 
-I'm going to install FreeIPA on a proxmox LXC container and siggn it's certificate with the dogtag CA
-server. The lxc container will be unpriviliged
+I'm going to install FreeIPA on a proxmox LXC container and sign it's certificate with the dogtag CA
+server. The lxc container will be unpriviliged.
+
+After a CentOS 8 install from template, I had to install some extra packages;
+
+    yum install sudo
 
 REF https://floblanc.wordpress.com/2016/09/02/using-a-dogtag-instance-as-external-ca-for-free-ipa-installation/
 
-## install apache and php - NOT REQUIRED!
+## Install part 1
 
-    centOS 8 uses tomcat. If these are installed, dogtag instalation fails
-    yum install http php
+replace the following below with your stuff;
 
-## Configure firewall
+    --hostname=
+    -n your domani
+    -r your domain un upper case
+    -p a super secret password
+    -a a super secret password
 
-CentOS 8 used firewall-cmd
+no need for --forwarder if you have /etc/resolve.conf, as this is filled with these values
 
-    firewall-cmd --permanent --zone=public --add-service=http
-    firewall-cmd --permanent --zone=public --add-service=https
+    ipa-server-install \
+        --hostname=fq.host \
+        --setup-dns \
+        --no-ntp \
+        --setup-adtrust \
+        --setup-kra \
+        -n domain \
+        -r DOMAIN \
+        --netbios-name=GLI \
+        -p 'password' -a 'password' \
+        --external-ca
 
-    # Not this one, as it's not secure, it's http
-    #firewall-cmd --zone=public --add-port=8080/tcp
-    # this one is https
-    firewall-cmd --zone=public --add-port=8443/tcp
+## Install part 2
 
-    firewall-cmd --reload 
+now cat /root/ipa.csr and copy
 
-## Entropy
+got to dogtag web, SSL End Users Services, Manual Certificate Manager Signing Certificate Enrollment.
 
-make sure quemu-guest-client is installed. Also add VirtIO RNG to the guest hardware
+Configure firewallste copied certificate and fill in your information
 
-    yum install qemu-guest-agent
+take note of request number
 
-## selinux
+go back to, Agent Services, List Requests
 
-need to set selinux to permissive to do the install
+find the certificate request and click it, and approve it
 
-    sudo setenforce 0
-    sudo sed -i 's/^SELINUX=.*/SELINUX=permissive/g' /etc/selinux/config
+now go back and click list certificates and find it, as the approval page does not have the complete certificate
 
+copy the base64 encoded part to /root/ipa.cert
 
-## 389-ds-base pki-ca
+go back to list certificates and click on the CA, which would be certificate 1
 
-    yum -y install @idm:DL1
-    yum -y install 389-ds-base pki-ca
+copy the base64 encoding part tp /root/dogtagca.cert
 
-    dnf -y module install 389-directory-server:stable/default
-    dscreate interactive
+now run part 2
 
-    systemctl enable dirsrv.target
-    systemctl enable dirsrv@ca.service
-    systemctl start dirsrv.target
-    systemctl start dirsrv@ca.service
-    systemctl status dirsrv.target
-    systemctl status dirsrv@ca.service
-    lsof -i -P -n | grep LISTEN
+    /sbin/ipa-server-install --external-cert-file=/root/ipa.cert --external-cert-file=/root/dogtagca.cert
 
-## dogtag theme
+enter your super secret password
 
-get the version ok pki that is installed
+## sucess message
 
-    yum list installed  | grep pki-base.noarch
+	The ipa-client-install command was successful
 
-during this install the version was 10.8.3 and this is the one that I found
+	==============================================================================
+	Setup complete
 
-    yum install http://rpmfind.net/linux/fedora/linux/releases/32/Everything/x86_64/os/Packages/d/dogtag-pki-server-theme-10.8.3-1.fc32.noarch.rpm
+	Next steps:
+        1. You must make sure these network ports are open:
+                TCP Ports:
+                  * 80, 443: HTTP/HTTPS
+                  * 389, 636: LDAP/LDAPS
+                  * 88, 464: kerberos
+                  * 53: bind
+                UDP Ports:
+                  * 88, 464: kerberos
+                  * 53: bind
 
-## Setup Dogtag CA
+        2. You can now obtain a kerberos ticket using the command: 'kinit admin'
+           This ticket will allow you to use the IPA tools (e.g., ipa user-add)
+           and the web user interface.
+        3. Kerberos requires time synchronization between clients
+           and servers for correct operation. You should consider enabling chronyd.
 
-    pkispawn -s CA
-
-    systemctl enable pki-tomcatd.target
-    systemctl enable pki-tomcatd@
-    systemctl start pki-tomcatd.target
-    systemctl start pki-tomcatd@
-
-now access via
-
-    https://dogtag01.gli.lan:8443/ca
-    
-    ==========================================================================
-                            INSTALLATION SUMMARY
-    ==========================================================================
-
-    Administrator's username:             caadmin
-    Administrator's PKCS #12 file:
-        /root/.dogtag/pki-tomcat/ca_admin_cert.p12
-
-    To check the status of the subsystem:
-        systemctl status pki-tomcatd@pki-tomcat.service
-
-    To restart the subsystem:
-        systemctl restart pki-tomcatd@pki-tomcat.service
-
-    The URL for the subsystem is:
-        https://dogtag01.gli.lan:8443/ca
-
-    PKI instances will be enabled upon system boot
-
-    ==========================================================================
-
-## looks like I've somehow got it working to this point
-
-This is a youtube tutorial
-
-    https://www.youtube.com/watch?v=-Fak3EdUiOE
-
-The instructions ara a little dated, but they can be followed. I generated the signing request using openssl
-then got dogtag to sign it.
+	Be sure to back up the CA certificates stored in /root/cacert.p12
+	These files are required to create replicas. The password for these
+	files is the Directory Manager password
+	The ipa-server-install command was successful
 
