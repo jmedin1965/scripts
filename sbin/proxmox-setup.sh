@@ -161,7 +161,7 @@ main()
             info limit zfs memory limit
             limit_g="8"
         fi
-        info "  limit set to ${limit}G"
+        info "  limit set to ${limit_g}G"
         limit=$(( limit_g * 1024 * 1024 * 1024 ))
         info "  limit set to ${limit}"
         cat > /etc/modprobe.d/zfs.conf <<-END
