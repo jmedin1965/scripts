@@ -46,21 +46,6 @@ main()
         echo
     fi
 
-    if [ -e /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js ]
-    then
-        if [ "$(fgrep -c "data.status !== 'Active'" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js)" == 0 ]
-        then
-            info "subscrion message already removed"
-        else
-            info "remove the subscrion message"
-            sed -i.bak \
-                "s/data.status !== 'Active'/false/g" \
-                /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && \
-                systemctl restart pveproxy.service
-        fi
-        echo
-    fi
-
     # set swappiness
     swappiness="$(</proc/sys/vm/swappiness)"
     info "setting swappines from $swappiness to 30"
@@ -205,6 +190,22 @@ END
 
     #echo dist-upgrade
     #apt dist-upgrade -y
+
+    if [ -e /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js ]
+    then
+        if [ "$(fgrep -c "data.status !== 'Active'" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js)" == 0 ]
+        then
+            info "subscrion message already removed"
+        else
+            info "remove the subscrion message"
+            sed -i.bak \
+                "s/data.status !== 'Active'/false/g" \
+                /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && \
+                systemctl restart pveproxy.service
+        fi
+        echo
+    fi
+
 }
 
 log()
