@@ -66,7 +66,7 @@ main()
             /etc/apt/sources.list.d/pgm-install-repo.list
     fi
 
-	if [ "$ID" == debian ]
+	if [ "$ID" == debian -o "$ID" == ubuntu ]
 	then
     	info "apt update and upgrade"
     	apt update
