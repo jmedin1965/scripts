@@ -1,5 +1,9 @@
 #!/bin/bash
 
+proxmox_packages="tmux htop iotop nload bmon ifupdown2 ethtool liblz4-tool sysstat"
+proxmox_gateway_pachages="ifupdown2 ethtool"
+extra_packages="vim ethtool"
+
 main()
 {
     info "remove subscription apt repos"
@@ -92,7 +96,6 @@ main()
 		fi
 	fi
 
-    extra_packages="vim ethtool"
     info "Install extra packages: $extra_packages"
 	if [ "$ID" == debian ]
 	then
@@ -115,7 +118,7 @@ main()
     # Proxmox Mail Gateway
     if [ -e /usr/bin/pmgversion ]
     then
-        apt install -y ifupdown2 ethtool
+        apt install -y $proxmox_gateway_pachages
     fi
 
     # Proxmox
@@ -125,7 +128,7 @@ main()
         pveam update
         echo
 
-        apt install -y tmux htop iotop ifupdown2 ethtool liblz4-tool sysstat
+        apt install -y $proxmox_packages
 
         info checking nested virtualisation
         # REF https://forum.proxmox.com/threads/nested-virtualization.25996/
