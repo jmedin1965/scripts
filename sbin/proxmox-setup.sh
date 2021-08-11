@@ -194,15 +194,16 @@ END
     #echo dist-upgrade
     #apt dist-upgrade -y
 
+
     if [ -e /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js ]
     then
-        if [ "$(fgrep -c "data.status !== 'Active'" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js)" == 0 ]
+        if [ "$(grep -c "data.status.toLowerCase()\s*!==\s*'active'" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js)" == 0 ]
         then
             info "subscrion message already removed"
         else
             info "remove the subscrion message"
-            sed -i.bak \
-                "s/data.status !== 'Active'/false/g" \
+            sed -i.bak -z \
+                "s/res === null || res === undefined || \!res || res\n\t\t\t.data.status.toLowerCase() \!== 'active'/false/g" \
                 /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && \
                 systemctl restart pveproxy.service
         fi
