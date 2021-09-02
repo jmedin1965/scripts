@@ -2,6 +2,15 @@
 
 . /lib/lsb/init-functions
 
+#
+# Probably do this differently
+#
+# REF https://unix.stackexchange.com/questions/39226/how-to-run-a-script-with-systemd-right-before-shutdown
+#
+# so add a script to /usr/lib/systemd/system-shutdown/
+# and make it react to arg1 set to halt
+
+
 [ -e /usr/local/etc/proxmox-backup.conf ] && . /usr/local/etc/proxmox-backup.conf
 
 if [ "$1" == install ]
