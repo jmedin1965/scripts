@@ -124,6 +124,10 @@ main()
     # Proxmox
     if [ -e /usr/bin/pveversion ]
     then
+        # REF: https://forum.proxmox.com/threads/how-to-stop-warnings-kvm-vcpu0-ignored-rdmsr.28552/
+        info "set ignored rdmsr and ignored wrmsr to remove syslog warnings"
+        echo "options kvm report_ignored_msrs=0" > /etc/modprobe.d/kvm.conf
+
         info updating lxd templates - pveam update
         pveam update
         echo
