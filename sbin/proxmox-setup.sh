@@ -19,6 +19,10 @@ main()
     info "System manufacturere = $manufacturere"
     echo
 
+    info "please enjoy 5 seconds to think about things."
+    sleep 5
+    echo
+
     if [ -e /etc/locale.gen ]
     then
         info "set locate"
@@ -172,33 +176,37 @@ main()
         limit=$(( limit_g * 1024 * 1024 * 1024 ))
         info "  limit set to ${limit}"
         cat > /etc/modprobe.d/zfs.conf <<-END
-#
-# REF: https://pve.proxmox.com/wiki/ZFS_on_Linux#_limit_zfs_memory_usage
-#
-# expr $limit_g \* 1024 \* 1024 \* 1024
-options zfs zfs_arc_max=$limit
-END
+			#
+			# REF: https://pve.proxmox.com/wiki/ZFS_on_Linux#_limit_zfs_memory_usage
+			#
+			# expr $limit_g \* 1024 \* 1024 \* 1024
+			options zfs zfs_arc_max=$limit
+			END
         /usr/sbin/update-initramfs -u
         echo
     fi
 
-    #
-    # REF: https://backports.debian.org/Instructions/
-    #
-	if [ "$ID" == debian ]
-	then
-    	info "adding debian backports for $codename"
-    	echo "deb http://deb.debian.org/debian ${codename}-backports main" > /etc/apt/sources.list.d/backports.list
-    	info "installing monit from backports"
-    	apt update
-    	apt -t ${codename}-backports install monit
-    	echo
-	fi
+    ##
+    ## REF: https://backports.debian.org/Instructions/
+    ##
+	#if [ "$ID" == debian ]
+	#then
+    #	info "adding debian backports for $codename"
+    #	echo "deb http://deb.debian.org/debian ${codename}-backports main" > /etc/apt/sources.list.d/backports.list
+    #	info "installing monit from backports"
+    #	apt update
+    #	apt -t ${codename}-backports install monit
+    #	echo
+	#fi
+    # No need as Monit is now in stardart source
 
     #echo dist-upgrade
     #apt dist-upgrade -y
 
 
+    #
+    # Remove subscription message
+    #
     if [ -e /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js ]
     then
         if [ "$(grep -c "data.status.toLowerCase()\s*!==\s*'active'" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js)" == 0 ]
