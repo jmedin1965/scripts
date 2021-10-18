@@ -23,6 +23,42 @@ main()
     sleep 5
     echo
 
+    #
+    # Looks like after upgrading to debian 11 the console resolution is too high for
+    # my screen
+    #
+    # REF: https://unix.stackexchange.com/questions/17027/how-to-set-the-resolution-in-text-consoles-troubleshoot-when-any-vga-fail
+    if [ "$manufacturere" == "Cisco Systems Inc" ]
+    then
+        info "set console resolution to 640x480"
+        changed="false"
+        for exp in GRUB_GFXMODE=640x480 GRUB_GFXPAYLOAD_LINUX=keep
+        do
+            if /usr/bin/grep -q "^${exp}$" /etc/default/grub
+            then
+                info "\"$exp\" already set"
+
+            elif /usr/bin/grep -q "^${exp%=*}=" /etc/default/grub
+            then
+                changed="true"
+                info "\"${exp%=*}=\" exists, but with wrong value, fixing"
+                /usr/bin/sed -i -e "s/^${exp%=*}=.*/$exp/g" /etc/default/grub
+            else
+                changed="true"
+                info "\"$exp\" does not exist, adding"
+                echo "$exp" >> /etc/default/grub
+            fi
+        done
+        if [ "$changed" != "false" ]
+        then
+            info "grub config changed, restarting grub"
+            echo "FRAMEBUFFER=y" | /usr/bin/tee /etc/initramfs-tools/conf.d/splash
+            /usr/sbin/update-initramfs -u
+            /usr/sbin/update-grub
+        fi
+    fi
+
+    # fix locale
     if [ -e /etc/locale.gen ]
     then
         info "set locate"
