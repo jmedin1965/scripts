@@ -43,6 +43,11 @@ END
     log_action_begin_msg "enable service"
     /usr/bin/systemctl enable turn-off-sonoffs.service
     log_action_end_msg "$?"
+elif [ "$1" == "disable" ]
+then
+    log_action_begin_msg "disable service"
+    /usr/bin/systemctl disable turn-off-sonoffs.service
+    log_action_end_msg "$?"
 elif [ "$1" == off ]
 then
     # not on reboot
@@ -68,7 +73,7 @@ then
         done
     fi
 else
-    echo usage: $(/usr/bin/basename "$0") 'off|install'
+    echo usage: $(/usr/bin/basename "$0") 'off|install|disable'
 fi
 
 exit 0
