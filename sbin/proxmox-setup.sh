@@ -19,6 +19,46 @@ main()
     info "System manufacturere = $manufacturere"
     echo
 
+    info "please enjoy 5 seconds to think about things."
+    sleep 5
+    echo
+
+    #
+    # Looks like after upgrading to debian 11 the console resolution is too high for
+    # my screen
+    #
+    # REF: https://unix.stackexchange.com/questions/17027/how-to-set-the-resolution-in-text-consoles-troubleshoot-when-any-vga-fail
+    if [ "$manufacturere" == "Cisco Systems Inc" ]
+    then
+        info "set console resolution to 640x480"
+        changed="false"
+        for exp in GRUB_GFXMODE=640x480 GRUB_GFXPAYLOAD_LINUX=keep
+        do
+            if /usr/bin/grep -q "^${exp}$" /etc/default/grub
+            then
+                info "\"$exp\" already set"
+
+            elif /usr/bin/grep -q "^${exp%=*}=" /etc/default/grub
+            then
+                changed="true"
+                info "\"${exp%=*}=\" exists, but with wrong value, fixing"
+                /usr/bin/sed -i -e "s/^${exp%=*}=.*/$exp/g" /etc/default/grub
+            else
+                changed="true"
+                info "\"$exp\" does not exist, adding"
+                echo "$exp" >> /etc/default/grub
+            fi
+        done
+        if [ "$changed" != "false" ]
+        then
+            info "grub config changed, restarting grub"
+            echo "FRAMEBUFFER=y" | /usr/bin/tee /etc/initramfs-tools/conf.d/splash
+            /usr/sbin/update-initramfs -u
+            /usr/sbin/update-grub
+        fi
+    fi
+
+    # fix locale
     if [ -e /etc/locale.gen ]
     then
         info "set locate"
@@ -124,6 +164,10 @@ main()
     # Proxmox
     if [ -e /usr/bin/pveversion ]
     then
+        # REF: https://forum.proxmox.com/threads/how-to-stop-warnings-kvm-vcpu0-ignored-rdmsr.28552/
+        info "set ignored rdmsr and ignored wrmsr to remove syslog warnings"
+        echo "options kvm report_ignored_msrs=0" > /etc/modprobe.d/kvm.conf
+
         info updating lxd templates - pveam update
         pveam update
         echo
@@ -168,33 +212,38 @@ main()
         limit=$(( limit_g * 1024 * 1024 * 1024 ))
         info "  limit set to ${limit}"
         cat > /etc/modprobe.d/zfs.conf <<-END
-#
-# REF: https://pve.proxmox.com/wiki/ZFS_on_Linux#_limit_zfs_memory_usage
-#
-# expr $limit_g \* 1024 \* 1024 \* 1024
-options zfs zfs_arc_max=$limit
-END
+			#
+			# REF: https://pve.proxmox.com/wiki/ZFS_on_Linux#_limit_zfs_memory_usage
+			#
+			# expr $limit_g \* 1024 \* 1024 \* 1024
+			options zfs zfs_arc_max=$limit
+			END
         /usr/sbin/update-initramfs -u
         echo
     fi
 
-    #
-    # REF: https://backports.debian.org/Instructions/
-    #
-	if [ "$ID" == debian ]
-	then
-    	info "adding debian backports for $codename"
-    	echo "deb http://deb.debian.org/debian ${codename}-backports main" > /etc/apt/sources.list.d/backports.list
-    	info "installing monit from backports"
-    	apt update
-    	apt -t ${codename}-backports install monit
-    	echo
-	fi
+    ## add monit from backports
+    ##
+    ## REF: https://backports.debian.org/Instructions/
+    ##
+	#if [ "$ID" == debian ]
+	#then
+    #	info "adding debian backports for $codename"
+    #	echo "deb http://deb.debian.org/debian ${codename}-backports main" > /etc/apt/sources.list.d/backports.list
+    #	info "installing monit from backports"
+    #	apt update
+    #	apt -t ${codename}-backports install monit
+    #	echo
+	#fi
+    # No need as Monit is now in stardart source
 
     #echo dist-upgrade
     #apt dist-upgrade -y
 
 
+    #
+    # Remove subscription message
+    #
     if [ -e /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js ]
     then
         if [ "$(grep -c "data.status.toLowerCase()\s*!==\s*'active'" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js)" == 0 ]
