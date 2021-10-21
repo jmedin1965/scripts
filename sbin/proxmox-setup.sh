@@ -125,7 +125,7 @@ main()
     info "manufacturere=$manufacturere, check if we are a virtual machine, install agent if we are."
     if [ "$manufacturere" == QEMU ]
 	then
-        info "install qemu-guest-agent"
+        info "install qemu-guest-agent qemu-utils"
 		if [ "$ID" == debian ]
 		then
  			apt install -y qemu-guest-agent
