@@ -1,2 +1,5 @@
 README.md	filter=git-ident
 *.txt		filter=git-ident
+bin/terraform filter=lfs diff=lfs merge=lfs -text
+bin/packer filter=lfs diff=lfs merge=lfs -text
+bin/git-lfs filter=lfs diff=lfs merge=lfs -text
