@@ -6,7 +6,7 @@ git_repo_local="/usr/local/scripts"
 
 [ -d "${git_repo_local}/.git" ] || /usr/bin/git clone https://github.com/jmedin1965/scripts.git "$git_repo_local"
 cd "${git_repo_local}"
-#/bin/sleep $(( $RANDOM % 120 + 1 ))
+/bin/sleep $(( $RANDOM % 120 + 1 ))
 /usr/bin/git pull  > /dev/null
 
 /bin/ln -fs /usr/local/scripts/profile.d/usr-local-scripts.sh /etc/profile.d/usr-local-scripts.sh
