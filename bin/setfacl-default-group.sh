@@ -9,6 +9,6 @@ if [ $# == 0 ]
 then
     echo "Usage: $(/usr/bin/basename "$0") <file|dir>..."
 else
-    /usr/bin/chmod g+s "$@"
+    /bin/chmod g+s "$@"
     /usr/bin/setfacl --default --modify group::rwx "$@"
 fi
