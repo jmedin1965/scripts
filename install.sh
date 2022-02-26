@@ -7,7 +7,7 @@ git_repo="https://jmedin1965@github.com/jmedin1965/scripts.git"
 if [ -d "${git_repo_local}/.git" ]
 then
     cd "${git_repo_local}"
-    /bin/sleep $(( $RANDOM % 120 + 1 ))
+    /usr/bin/tty --quiet && /bin/sleep $(( $RANDOM % 120 + 1 ))
     /usr/bin/git pull  > /dev/null
 else
     /usr/bin/git clone "$git_repo" "$git_repo_local"
