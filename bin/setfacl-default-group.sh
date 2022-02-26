@@ -10,5 +10,5 @@ then
     echo "Usage: $(/usr/bin/basename "$0") <file|dir>..."
 else
     /bin/chmod g+s "$@"
-    /usr/bin/setfacl --default --modify group::rwx "$@"
+    /usr/bin/setfacl --default --modify user::rwx,group::rwx,other::r-x "$@"
 fi
