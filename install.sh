@@ -3,6 +3,10 @@
 git_repo_local="/usr/local/scripts"
 git_repo="https://jmedin1965@github.com/jmedin1965/scripts.git"
 
+# fix for ipfire
+readlink="/bin/readlink"
+[ -e /usr/bin/readlink ] && readlink="/usr/bin/readlink"
+
 # clone the repo if it does not exest, else git pull
 if [ -d "${git_repo_local}/.git" ]
 then
@@ -28,16 +32,20 @@ cron_d=""
 [ -n "${cron_d}" ] && /bin/ln -fs "$git_repo_local/install.sh" "${cron_d}/usr-local-scripts.sh"
 
 vimlocal="/etc/vim/vimrc.local"
-# do vim fixes
-#
-# if file exists and is a real file or if it's a link and not pointing to the scripts version
-if [ -e "$vimlocal" -a ! -h "$vimlocal" ] || [ -h "$vimlocal" -a "$(/bin/readlink -f "$vimlocal")" != "$git_repo_local$vimlocal" ]
+# fix for ipfire, needs further fixing
+if [ -d /etc/vim ]
 then
-    /bin/rm -f "$vimlocal"
-fi
-if [ ! -e "$vimlocal" ]
-then
-    /bin/ln -s "$git_repo_local$vimlocal" "$vimlocal"
+    # do vim fixes
+    #
+    # if file exists and is a real file or if it's a link and not pointing to the scripts version
+    if [ -e "$vimlocal" -a ! -h "$vimlocal" ] || [ -h "$vimlocal" -a "$($readlink -f "$vimlocal")" != "$git_repo_local$vimlocal" ]
+    then
+        /bin/rm -f "$vimlocal"
+    fi
+    if [ ! -e "$vimlocal" ]
+    then
+        /bin/ln -s "$git_repo_local$vimlocal" "$vimlocal"
+    fi
 fi
 
 # do cleanup
