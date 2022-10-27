@@ -246,13 +246,13 @@ main()
     #
     if [ -e /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js ]
     then
-        if [ "$(grep -c "data.status.toLowerCase()\s*!==\s*'active'" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js)" == 0 ]
+        if [ "$(grep -c "const subscription = .*data.status.*'active'" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js)" == 0 ]
         then
             info "subscrion message already removed"
         else
             info "remove the subscrion message"
             sed -i.bak -z \
-                "s/res === null || res === undefined || \!res || res\n\t\t\t.data.status.toLowerCase() \!== 'active'/false/g" \
+                "s/const subscription =.*'active');/const subscription = false;/g" \
                 /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && \
                 systemctl restart pveproxy.service
         fi
