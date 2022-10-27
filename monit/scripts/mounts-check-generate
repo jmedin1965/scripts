@@ -1,0 +1,117 @@
+#!/bin/bash
+
+. /etc/monit/scripts/functions.sh
+
+
+main()
+{
+	out_dir="/etc/monit/conf.d"
+	out_file="/etc/monit/conf.d/mounts-check"
+
+	# This just checks /proc//mounts for changes
+	do_mounts_ckeck_local > "${out_dir}/mounts-check.local"
+
+	if [ $# == 0 ] # regenerate all
+	then
+		# clean out all old files
+		/bin/rm -f "${out_dir}/mounts-check-"*".local"
+
+		while read fs_spec fs_file fs_vfstype fs_mntops fs_freq fs_passno
+		do
+			do_mounts_check_file_local "$fs_spec" "$fs_file" "$fs_vfstype"
+
+		done <<< "$(< /proc/mounts)"
+
+	else # regenerate just one
+		do_mounts_check_file_local "$@"
+	fi
+
+	/usr/bin/monit reload
+}
+
+
+do_mounts_ckeck_local()
+{
+    (
+	auto_generated_msg_start
+
+	echo "
+check file mounts with path /proc/mounts
+	if failed SHA1 checksum expect \"$(sha1sum "/proc/mounts")\" 
+	    then exec \""$(/usr/bin/readlink -f "$0")"\"
+
+check file mounts_check with path \"${out_file}.local\"
+	if not exist then exec \""$(/usr/bin/readlink -f "$0")"\"
+
+"
+    ) > "${out_dir}/mounts-check.local"
+}
+
+
+do_mounts_check_file_local()
+{
+	local fs_spec="$1"
+	local fs_file="$2"
+	local fs_vfstype="$3"
+
+	local basename="$(/usr/bin/basename "$fs_spec")"
+	local pathname="${fs_file//\//_}"
+	local out_f=""${out_dir}/mounts-check-${pathname}.local""
+
+	pathname="${pathname#_}"
+
+	[ -z "$pathname" ] && pathname="rootfs"
+
+	case "$fs_spec" in
+	(/dev/sd[a-z]*[0-9]*)
+	    (
+		auto_generated_msg_start
+
+		echo "check filesystem path-$pathname with path $fs_file"
+		echo "    include /etc/monit/templates/filesystem_checks_std"
+
+		if [ -e /sys/block/$basename/size ]
+		then
+			echo
+			echo "check file size-$pathname with path /sys/block/$basename/size"
+			echo "    if failed SHA1 checksum expect $(sha1sum "/sys/block/$basename/size") then alert"
+		fi
+
+		echo
+		echo
+	    ) > "$out_f"
+		;;
+	(/dev/sd*)
+	    (
+		auto_generated_msg_start
+
+		echo "check filesystem path-$pathname with path $fs_file"
+		echo "    include /etc/monit/templates/filesystem_checks_std"
+
+		if [ -e /sys/block/$basename/size ]
+		then
+			echo
+			echo "check file size-$pathname with path /sys/block/$basename/size"
+			echo "    if failed SHA1 checksum expect $(sha1sum "/sys/block/$basename/size")"
+			echo "        then exec \"$(/usr/bin/readlink -f "$0") $fs_spec $fs_file $fs_vfstype\""
+		fi
+
+		case "$fs_vfstype" in
+		(ext*)
+			echo "#"
+			echo "# $(/bin/date): /sbin/resize2fs $fs_spec"
+			echo "#"
+			/sbin/resize2fs "$fs_spec" 2>&1 | /bin/sed 's/^/#/g'
+			;;
+		esac
+
+		echo
+		echo
+	    ) > "$out_f"
+		;;
+	esac
+}
+
+
+
+main "$@"

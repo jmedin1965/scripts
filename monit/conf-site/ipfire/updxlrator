@@ -1,0 +1,13 @@
+
+check process updxlrator matching /usr/sbin/updxlrator
+  group updxlrator
+  start program = "/etc/init.d/squid start" with timeout 60 seconds
+  stop program = "/etc/init.d/squid stop" with timeout 400 seconds
+  depend updxlrator_check
+
+check program updxlrator_check path /etc/monit/scripts/check-updxlrator
+	group updxlrator
+	if status != 0
+	    include /etc/monit/templates/flapping-standard
+		then alert
+

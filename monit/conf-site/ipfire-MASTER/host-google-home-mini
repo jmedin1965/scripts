@@ -1,0 +1,4 @@
+check host host-google-home-mini with address 10.11.1.101
+    if failed ping4
+        include /etc/monit/templates/flapping-standard
+            then alert
