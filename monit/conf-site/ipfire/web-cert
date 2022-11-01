@@ -1,9 +1,0 @@
-check host web-cert with address localhost
-	if failed
-		host localhost
-		port 444
-		type TCPSSL
-		protocol https
-		certificate valid > 10 days
-	then alert
-

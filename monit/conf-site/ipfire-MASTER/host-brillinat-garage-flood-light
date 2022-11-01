@@ -1,4 +1,0 @@
-check host host-brillinat-garage-flood-light with address 10.11.1.99
-    if failed ping4
-        include /etc/monit/templates/flapping-standard
-            then alert

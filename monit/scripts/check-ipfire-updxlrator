@@ -1,0 +1,47 @@
+#!/bin/bash
+#
+# Make sure updxlrator is patched/fixed
+#
+
+source "$(/usr/bin/dirname "$0")/functions.sh"
+
+EV="0"
+
+if [ -e /usr/sbin/updxlrator ]
+then
+    patch_start
+    patch '|deb|rpm)' '|deb|udeb|rpm\)' "/usr/sbin/updxlrator"
+    patch_end
+    EV="$?"
+else
+    echo "/usr/sbin/updxlrator: file does not exist"
+fi
+
+if [ -e /var/ipfire/proxy/settings ]
+then
+	eval $(/usr/local/bin/readhash /var/ipfire/proxy/settings)
+	
+	monit_updxlrator="$(/usr/bin/monit -B status updxlrator | /bin/fgrep -c "Not monitored")"
+	if [ "$ENABLE_UPDXLRATOR" == "on" ]
+	then
+		echo "Updxlrator is enabled"
+		if [ "$monit_updxlrator" -gt 0 ]
+		then
+			/usr/bin/monit monitor updxlrator
+		fi
+		if [ "$EV" != "0" ]
+		then
+			/etc/init.d/squid restart 2>&1
+			echo "restarted squid."
+		fi
+	else
+		echo "Updxlrator is disabled"
+		if [ "$monit_updxlrator" == "0" ]
+		then
+			/usr/bin/monit unmonitor updxlrator
+		fi
+	fi
+fi
+
+exit "$EV"
+

@@ -1,4 +1,0 @@
-check host host-internet-gateway with address 203.134.4.175
-    if failed ping4
-        include /etc/monit/templates/flapping-standard
-            then alert

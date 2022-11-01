@@ -53,4 +53,6 @@ bash-git-prompt
 
 #monit
 /monit/conf-enabled/*
+/monit/conf.d/*
+/monit/monitrc
 

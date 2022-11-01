@@ -1,2 +1,0 @@
-check file syslog with path /var/log/messages
-        if content = "Reset adapter" then alert

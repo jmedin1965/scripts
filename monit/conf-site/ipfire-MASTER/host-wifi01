@@ -1,4 +1,0 @@
-check host host-wifi01 with address 10.10.0.129
-    if failed ping4
-        include /etc/monit/templates/flapping-standard 
-            then alert
