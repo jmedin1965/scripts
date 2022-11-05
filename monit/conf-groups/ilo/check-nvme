@@ -1,0 +1,3 @@
+check program nvme_check path /etc/monit/scripts/check-nvme.sh
+	if status != 0
+		then alert

@@ -5,6 +5,142 @@
 #
 # source "$(/usr/bin/dirname "$0")/functions.sh"
 
+conf_groups="/etc/monit/conf-groups"
+conf_d="/etc/monit/conf.d"
+conf_enabled="/etc/monit/conf-enabled"
+
+monit_uptime_str=""
+monit_uptime()
+{
+    local info
+    local i
+    local d="0"
+    local h="0"
+    local m="0"
+    local s="0"
+
+    if [ -n "$monit_uptime_str" ]
+    then
+        read -a info <<< "$monit_uptime_str"
+    else
+        read -a info <<< "$(/usr/bin/monit summary | /usr/bin/head -n1)"
+    fi
+
+    [ $# == 0 ] && set -- "-a"
+
+    # work out run time
+    #for ((i=3; i < ${#info[@]}; i++))
+    for i in ${info[@]:3:${#info[@]}}
+    do
+        case "$i" in
+            *"d")
+                d="${i%d}"
+                s=$((s + d * 24 * 60 * 60))
+                ;;
+            *"h")
+                h="${i%h}"
+                s=$((s + h * 60 * 60))
+                ;;
+            *"m")
+                m="${i%m}"
+                s=$((s + m * 60))
+                ;;
+        esac
+    done
+
+    while [ $# != 0 ]
+    do
+        case "$1" in
+            "-a")   echo ${info[*]};;
+            "-v")   echo ${info[1]};;
+            "-d")   echo $d;;
+            "-h")   echo $h;;
+            "-m")   echo $m;;
+            "-s")   echo $s;;
+        esac
+        shift
+    done
+}
+
+msg()
+{
+    echo "$@"
+}
+err_log=()
+err()
+{
+    err_log+=( "ERROR: $*" )
+}
+err_print()
+{
+    local value
+
+    for value in "${err_log[@]}"
+    do
+        echo $value
+    done
+}
+warn()
+{
+    msg "WARN:" "$@"
+}
+info()
+{
+    msg "STATUS:" "$@"
+}
+
+
+# to_vars - execute command and convert var: data
+#           so that we can eval the output
+#           example a: b -> a=b
+#
+# called with eval $(to_vars "prog to execute")
+#
+to_vars()
+{
+    local line
+
+    while IFS=":" read var data
+    do
+        data="${data#"${data%%[![:space:]]*}"}"
+        if [ -n "$data" ]
+        then
+            echo "$var=\"$data\""
+        fi
+    done <<< "$( $@ )"
+}
+
+# get_os_info - get details of os
+#
+get_os_info()
+{
+    local info
+
+    os_description=""
+    os_id=""
+    os_release=""
+    os_codename=""
+
+    if [ -e /etc/system-release ]
+    then
+        read -a info <<< "$(</etc/system-release)"
+
+        os_description="${info[0]} ${info[1]} ${info[4]}"
+        os_id="${info[0]}"
+        os_release="${info[1]}"
+        os_codename="${info[4]}"
+
+    elif [ -e /etc/os-release ]
+    then
+        source /etc/os-release
+
+        os_description="$PRETTY_NAME"
+        os_id="$ID"
+        os_release="$VERSION_ID"
+        os_codename="$VERSION_CODENAME"
+    fi
+}
+
 # sha1sum <file> - return only the sha1sum of a file
 #
 sha1sum()

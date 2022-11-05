@@ -1,6 +1,6 @@
 #!/bin/bash
 
-. /etc/monit/scripts/functions.sh
+source "$(/usr/bin/dirname "$0")/functions.sh"
 
 
 main()
