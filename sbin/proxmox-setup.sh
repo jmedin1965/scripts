@@ -244,19 +244,13 @@ main()
     #
     # Remove subscription message
     #
+    # This has changed again
+    # REF: https://johnscs.com/remove-proxmox51-subscription-notice/
+    #
     if [ -e /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js ]
     then
-        if [ "$(grep -c "const subscription = .*data.status.*'active'" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js)" == 0 ]
-        then
-            info "subscrion message already removed"
-        else
-            info "remove the subscrion message"
-            sed -i.bak -z \
-                "s/const subscription =.*'active');/const subscription = false;/g" \
-                /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && \
-                systemctl restart pveproxy.service
-        fi
-        echo
+        log "INFO: check and fix subscription message"
+        sed -Ezi.bak "s/(Ext.Msg.show\(\{\s+title: gettext\('No valid sub)/void\(\{ \/\/\1/g" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && systemctl restart pveproxy.service
     fi
 
 }
