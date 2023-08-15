@@ -28,6 +28,14 @@ do
 	echo "- - -" > ${BUS}
 done
 
+if ! which sg_format
+then
+    echo
+    echo "sg_format is not installed"
+    echo "apt install sg3-utils"
+    exit 1
+fi
+
 if [ -z "$TMUX" ]
 then
 	ask "not in tmux session. are you sure you want to continue" || exit 1
