@@ -6,7 +6,7 @@ set -e
 PREFIX_DIR=""
 # declare the Bareos repository
 DOWNLOADSERVER="download.bareos.org"
-URL="https://download.bareos.org/current/Debian_12"
+URL="http://download.bareos.org/current/Debian_12"
 
 # Juan
 [ -e /etc/os-release ] && . /etc/os-release
