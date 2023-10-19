@@ -69,8 +69,15 @@ main() {
 
 check_detectproxy()
 {
-    /usr/bin/wget --continue -O "$profile_f" "$github_f" 
+    local p="$(/usr/bin/realpath "$0" )"
+
+    if [ ! -h "$profile_f" -a "$p" != "$profile_f" ]
+    then
+        print_msg "install proxy detection into /etc/profile.d"
+        /usr/bin/ln -fs "$p" "$profile_f"
+    fi
     /usr/bin/chmod 755 "$profile_f"
+
     [ -e "$dp_f" ] && return
 
     print_msg "$dp_f: creating file to use auto-detected proxy"
