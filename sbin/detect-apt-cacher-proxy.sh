@@ -33,12 +33,15 @@ main() {
     )
     local dp_f="/etc/apt/apt.conf.d/30detectproxy"
     local good_proxy="DIRECT"
+    local nc="/usr/bin/nc"
 
     for proxy in "${try_proxies[@]}"
     do
         # if the host machine / proxy is reachable...
         print_msg "try ${proxy}"
-        if /usr/bin/nc -z ${proxy/:/ }; then
+
+        if ( [ -e "$nc" ] && "$nc" -z ${proxy/:/ } ) || /usr/bin/ping -c 1 -t 1 ${proxy%%:*}
+	then
             proxy=http://$proxy
             print_msg "Found a good proxy: $proxy"
             good_proxy="$proxy"
@@ -54,6 +57,11 @@ main() {
         export proxy_http="$good_proxy"
         export proxy_https="$good_proxy"
         export ALL_PROXY="$good_proxy"
+        if [ ! -x "$nc" ]
+        then
+            print_msg "Attempt to install $nc"
+            /usr/bin/apt install -y netcat-openbsd
+        fi 
     fi
 }
 
