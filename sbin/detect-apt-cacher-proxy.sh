@@ -32,6 +32,8 @@ main() {
         apt-cacher03$domain:3142
     )
     local dp_f="/etc/apt/apt.conf.d/30detectproxy"
+    local profile_f="/etc/profile.d/detect-apt-cacher-proxy.sh"
+    local github_f="https://raw.githubusercontent.com/jmedin1965/scripts/master/sbin/detect-apt-cacher-proxy.sh"
     local good_proxy="DIRECT"
     local nc="/usr/bin/nc"
 
@@ -67,6 +69,8 @@ main() {
 
 check_detectproxy()
 {
+    /usr/bin/wget --continue -O "$profile_f" "$github_f" 
+    /usr/bin/chmod 755 "$profile_f"
     [ -e "$dp_f" ] && return
 
     print_msg "$dp_f: creating file to use auto-detected proxy"
@@ -76,7 +80,7 @@ Acquire::Retries 0;
 #
 # # It should be an absolute path to the program, no arguments are allowed. stdout contains the proxy
 # # server, stderr is shown (in stderr) but ignored by APT
-Acquire::http::ProxyAutoDetect \"$0\";
+Acquire::http::ProxyAutoDetect \"$profile_f\";
 " > "$dp_f"
 
 }
