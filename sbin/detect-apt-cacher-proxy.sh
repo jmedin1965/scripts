@@ -23,44 +23,54 @@ show_proxy_messages=1
 # be available on the top. If no proxy is available, a direct connection will
 # be used
 
-domain=".$(/usr/bin/hostname -d)"
+main() {
+    local domain=".$(/usr/bin/hostname -d)"
+    local try_proxies=(
+        apt-cacher$domain:3142
+        apt-cacher01$domain:3142
+        apt-cacher02$domain:3142
+        apt-cacher03$domain:3142
+    )
+    local dp_f="/etc/apt/apt.conf.d/30detectproxy"
+    local good_proxy="DIRECT"
 
-try_proxies=(
-  apt-cacher$domain:3142
-  apt-cacher01$domain:3142
-  apt-cacher02$domain:3142
-  apt-cacher03$domain:3142
-)
+    for proxy in "${try_proxies[@]}"
+    do
+        # if the host machine / proxy is reachable...
+        print_msg "try ${proxy}"
+        if /usr/bin/nc -z ${proxy/:/ }; then
+            proxy=http://$proxy
+            print_msg "Found a good proxy: $proxy"
+            good_proxy="$proxy"
+            check_detectproxy
+            break
+        fi
+    done
+    print_msg "Using proxy: $good_proxy"
+
+    echo "$good_proxy"
+    [ "$good_proxy" == DIRECT ] || ( proxy_http="$good_proxy"; ALL_PROXY="$good_proxy" )
+}
+
+check_detectproxy()
+{
+    [ -e "$dp_f" ] && return
+
+    print_msg "$dp_f: creating file to use auto-detected proxy"
+        echo "# Fail immediately if a file could not be retrieved. Comment if you have a bad
+# Internet connection
+Acquire::Retries 0;
+#
+# # It should be an absolute path to the program, no arguments are allowed. stdout contains the proxy
+# # server, stderr is shown (in stderr) but ignored by APT
+Acquire::http::ProxyAutoDetect \"$0\";
+" > "$dp_f"
+
+}
 
 print_msg() {
     # \x0d clears the line so [Working] is hidden
     [ "$show_proxy_messages" = 1 ] && printf '\x0d%s\n' "$1" >&2
 }
 
-if [ ! -e /etc/apt/apt.conf.d/30detectproxy ]
-then
-    print_msg "/etc/apt/apt.conf.d/30detectproxy: creating file to use auto-detected proxy"
-    echo "# Fail immediately if a file could not be retrieved. Comment if you have a bad
-# Internet connection
-Acquire::Retries 0;
-#
-# # It should be an absolute path to the program, no arguments are allowed. stdout contains the proxy
-# # server, stderr is shown (in stderr) but ignored by APT
-Acquire::http::ProxyAutoDetect "$0";
-" > /etc/apt/apt.conf.d/30detectproxy
-fi
-
-for proxy in "${try_proxies[@]}"; do
-    # if the host machine / proxy is reachable...
-    print_msg "try ${proxy/:/ }"
-    if nc -z ${proxy/:/ }; then
-        proxy=http://$proxy
-        print_msg "Proxy that will be used: $proxy"
-        echo "$proxy"
-        exit
-    fi
-done
-print_msg "No proxy will be used"
-
-# Workaround for Launchpad bug 654393 so it works with Debian Squeeze (<0.8.11)
-echo DIRECT
+main "$@"
