@@ -49,7 +49,12 @@ main() {
     print_msg "Using proxy: $good_proxy"
 
     echo "$good_proxy"
-    [ "$good_proxy" == DIRECT ] || ( proxy_http="$good_proxy"; ALL_PROXY="$good_proxy" )
+    if [ "$good_proxy" != DIRECT ]
+    then
+        export proxy_http="$good_proxy"
+        export proxy_https="$good_proxy"
+        export ALL_PROXY="$good_proxy"
+    fi
 }
 
 check_detectproxy()
