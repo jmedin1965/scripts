@@ -69,7 +69,13 @@ main() {
 
 check_detectproxy()
 {
-    local p="$(/usr/bin/realpath "$0" )"
+    local p
+
+    # check if we are running from /etc/profile.d
+    case "$0" in
+    -*)    p="$profile_f";;
+    *)     p="$(/usr/bin/realpath "$0" )";;
+    esac
 
     if [ ! -h "$profile_f" -a "$p" != "$profile_f" ]
     then
