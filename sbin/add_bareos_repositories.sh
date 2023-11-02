@@ -47,8 +47,11 @@ EOT
 # add package key
 mkdir -p "${PREFIX_DIR}/etc/apt/keyrings/"
 # download key via
-# wget -O /etc/apt/keyrings/bareos-experimental.gpg ${URL}/bareos-keyring.gpg
-# or
+if [ ! -x /usr/bin/gpg ]
+then
+    wget -O /etc/apt/keyrings/bareos-experimental.gpg ${URL}/bareos-keyring.gpg
+else
+    # or
 cat << EOT | gpg --dearmor -o "${PREFIX_DIR}/etc/apt/keyrings/bareos-experimental.gpg"
 -----BEGIN PGP PUBLIC KEY BLOCK-----
 
@@ -80,5 +83,6 @@ KL8=
 =j9IV
 -----END PGP PUBLIC KEY BLOCK-----
 EOT
+fi
 
 echo "Repository ${URL} successfully added."

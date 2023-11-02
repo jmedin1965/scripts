@@ -36,16 +36,17 @@ main()
                 /usr/bin/ssh $1 -x "/usr/bin/apt -y upgrade"
                 /usr/bin/ssh $1 -x "/usr/bin/apt -y install bareos-filedaemon"
 
-                # copy db scripts
-                /usr/bin/scp /usr/local/scripts/sbin/bareos-create-db-user.sh  $1:/root
-                /usr/bin/ssh $1 -x "/bin/ln -fs /root/bareos-create-db-user.sh /root/bareos-drop-db-user.sh"
-                generate_restore_readme | /usr/bin/ssh $1 -x "/bin/cat > /root/restore-readme.txt" 
 
                 # install maria DB Backup and bareos mariadbbackup plugin
                 # REF: https://docs.bareos.org/TasksAndConcepts/Plugins.html#storage-daemon-plugins 
                 # REF: https://docs.bareos.org/Appendix/Howtos.html
                 if is_installed "$1" mariadb-server
                 then
+                    # copy db scripts
+                    /usr/bin/scp /usr/local/scripts/sbin/bareos-create-db-user.sh  $1:/root
+                    /usr/bin/ssh $1 -x "/bin/ln -fs /root/bareos-create-db-user.sh /root/bareos-drop-db-user.sh"
+                    generate_restore_readme | /usr/bin/ssh $1 -x "/bin/cat > /root/restore-readme.txt" 
+
                     /usr/bin/ssh $1 -x "/usr/bin/apt -y install mariadb-backup bareos-filedaemon-mariabackup-python-plugin"
                     /usr/bin/ssh $1 -x "/bin/cp -f /etc/bareos/bareos-fd.d/client/myself.conf /etc/bareos/bareos-fd.d/client/myself.conf.bak"
                     /usr/bin/ssh $1 -x "/bin/sed -e 's/\(\s*\)#\s*\(Plugin Directory\s*=\)/\1\2/g' -e 's/\(\s*\)#\s*\(Plugin Names\s*=\).*/\1\2 \"python3\"/g' /etc/bareos/bareos-fd.d/client/myself.conf.bak > /etc/bareos/bareos-fd.d/client/myself.conf"
