@@ -57,7 +57,7 @@ main()
                 echo name=$name
                 ip="$(set -- $(/usr/bin/host $1); echo $4)"
                 echo ip=$ip
-                pw=$(/usr/bin/apg -a 1 -n 1 -m 16 -M SNCL)
+                pw=$(/usr/bin/apg -a 1 -n 1 -m 16 -M SNCL -E ';')
                 echo pw=$pw
 
                 if [ -e "/etc/bareos/bareos-dir.d/client/$name.conf" ]
@@ -72,18 +72,28 @@ main()
                     exp_file=${exp_file%\"*}
                     echo exp_file=$exp_file
 
-                    # copy client file to client
-                    [ -n "$exp_file" ] && /usr/bin/scp "$exp_file" $1:/etc/bareos/bareos-fd.d/director/
+                    if [ -n "$exp_file" ]
+                    then
 
-                    # restart bareos-fd on client host
-                    /usr/bin/ssh $1 -x /usr/bin/systemctl restart bareos-fd
+                        # copy client file to client
+                        # from: /etc/bareos/bareos-dir-export/client
+                        [ -n "$exp_file" ] && /usr/bin/scp "$exp_file" $1:/etc/bareos/bareos-fd.d/director/
 
-                    # reload bareos from bconsole
-                    echo reload | /usr/bin/sudo -u bareos bconsole
+                        # restart bareos-fd on client host
+                        /usr/bin/ssh $1 -x /usr/bin/systemctl restart bareos-fd
+
+                        # reload bareos from bconsole
+                        echo reload | /usr/bin/sudo -u bareos bconsole
+                    else
+                        echo "Error: add client failed"
+                    fi
                 fi
 
-                # display client info
-                echo "resolve client=$name" | /usr/bin/sudo -u bareos bconsole
+                if [ -n "$exp_file" ]
+                then
+                    # display client info
+                    echo "resolve client=$name" | /usr/bin/sudo -u bareos bconsole
+                fi
             else
                 msg "$1: no ping response, skipping"
             fi
