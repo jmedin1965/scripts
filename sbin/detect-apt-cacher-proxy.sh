@@ -32,13 +32,18 @@ main() {
         apt-cacher03$domain:3142
     )
     local dp_f="/etc/apt/apt.conf.d/30detectproxy"
+    local profile_f="/etc/profile.d/detect-apt-cacher-proxy.sh"
+    local github_f="https://raw.githubusercontent.com/jmedin1965/scripts/master/sbin/detect-apt-cacher-proxy.sh"
     local good_proxy="DIRECT"
+    local nc="/usr/bin/nc"
 
     for proxy in "${try_proxies[@]}"
     do
         # if the host machine / proxy is reachable...
         print_msg "try ${proxy}"
-        if /usr/bin/nc -z ${proxy/:/ }; then
+
+        if ( [ -e "$nc" ] && "$nc" -z ${proxy/:/ } ) || /usr/bin/ping -c 1 -t 1 ${proxy%%:*}
+	then
             proxy=http://$proxy
             print_msg "Found a good proxy: $proxy"
             good_proxy="$proxy"
@@ -54,11 +59,31 @@ main() {
         export proxy_http="$good_proxy"
         export proxy_https="$good_proxy"
         export ALL_PROXY="$good_proxy"
+        if [ ! -x "$nc" ]
+        then
+            print_msg "Attempt to install $nc"
+            /usr/bin/apt install -y netcat-openbsd
+        fi 
     fi
 }
 
 check_detectproxy()
 {
+    local p
+
+    # check if we are running from /etc/profile.d
+    case "$0" in
+    -*)    p="$profile_f";;
+    *)     p="$(/usr/bin/realpath "$0" )";;
+    esac
+
+    if [ ! -h "$profile_f" -a "$p" != "$profile_f" ]
+    then
+        print_msg "install proxy detection into /etc/profile.d"
+        /usr/bin/ln -fs "$p" "$profile_f"
+    fi
+    /usr/bin/chmod 755 "$profile_f"
+
     [ -e "$dp_f" ] && return
 
     print_msg "$dp_f: creating file to use auto-detected proxy"
@@ -68,7 +93,7 @@ Acquire::Retries 0;
 #
 # # It should be an absolute path to the program, no arguments are allowed. stdout contains the proxy
 # # server, stderr is shown (in stderr) but ignored by APT
-Acquire::http::ProxyAutoDetect \"$0\";
+Acquire::http::ProxyAutoDetect \"$profile_f\";
 " > "$dp_f"
 
 }
