@@ -197,6 +197,16 @@ main()
 	        fi
         fi
 
+        # PCI PassThrough
+        #
+        # REF: https://pve.proxmox.com/wiki/PCI(e)_Passthrough
+        echo "
+vfio
+vfio_iommu_type1
+vfio_pci
+vfio_virqfd
+" > /etc/modules-load.d/iommu.conf
+
         info limit zfs memory limit
         mem="$( set -- $(/usr/bin/free --giga | /usr/bin/fgrep Mem:); echo $2 )"
         limit_g="8"
