@@ -1,0 +1,4 @@
+#!/bin/bash
+
+exec /mnt/c/ProgramData/chocolatey/bin/choco.exe "$@"
+
