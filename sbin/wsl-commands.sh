@@ -7,5 +7,5 @@ do
     [ -d /mnt/$m ] || /bin/mkdir /mnt/$m
 done
 
-#service ssh start
+service cron start
 
