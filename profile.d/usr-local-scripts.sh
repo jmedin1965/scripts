@@ -17,6 +17,9 @@ fi
 # set vim as default editor it it exists
 [ -x /usr/bin/vim ] && export EDITOR="/usr/bin/vim"
 
+# set nodesj to user local ca certificate store
+export NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt
+
 # do cleanup
 unset git_repo_local
 

@@ -18,12 +18,19 @@ else
 fi
 
 # add to path
-if [ -n "$git_repo_local" ] && ! echo "$PATH" | /bin/grep -q "$git_repo_local" ; then
-  export PATH="${git_repo_local}/sbin:${git_repo_local}/bin:$PATH"
+if [ -e "$git_repo_local/profile.d/usr-local-scripts.sh" ]
+then
+    # usr-local-scripts.sh unsets git_repo_local, so we save it here
+    t="$git_repo_local"
+    . "$git_repo_local/profile.d/usr-local-scripts.sh"
+    git_repo_local="$t"
 fi
 
 # add to /etc/profile.d
-/bin/ln -fs "$git_repo_local/profile.d/usr-local-scripts.sh"  /etc/profile.d/usr-local-scripts.sh
+for t in "$git_repo_local/profile.d/"*
+do
+    /bin/ln -fs "$t"  /etc/profile.d/$(/bin/basename "$t")
+done
 
 # add to /etc/cron.daily/
 cron_d=""
@@ -49,5 +56,5 @@ then
 fi
 
 # do cleanup
-unset git_repo git_repo_local cron_d
+unset git_repo git_repo_local cron_d t
 
