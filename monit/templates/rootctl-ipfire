@@ -1,0 +1,4 @@
+if changed checksum       then alert
+if failed permission 4750 then unmonitor
+if failed uid root        then unmonitor
+if failed gid nobody      then unmonitor

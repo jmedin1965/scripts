@@ -1,0 +1,58 @@
+#!/bin/bash
+#
+# Make sure openvpn is working ok
+#
+
+[ -e /var/ipfire/failover/settings ] && eval $(/usr/local/bin/readhash /var/ipfire/failover/settings)
+[ -e /var/ipfire/ovpn/settings    ]  && eval $(/usr/local/bin/readhash /var/ipfire/ovpn/settings)
+
+pid="$(/bin/pidof /usr/sbin/openvpn)"
+var_run_pid=""
+[ -e /var/run/openvpn.pid ] && var_run_pid="$(</var/run/openvpn.pid)"
+
+EV="0"
+
+if [ "$ENABLED" == "on" ]
+then
+	echo "Openvpn is enabled,"
+
+	if [ -n "$pid" -a "$pid" == "$var_run_pid" ] # if it's running, and pid matches the one in run file, all good
+	then
+		echo "It's running as PID=$pid, all is good."
+
+	elif [ -n "$pid" ]
+	then
+		echo "It's running, but doesn't match run file pid, so killing it and starting again."
+		/bin/killall /usr/sbin/openvpn
+		sleep 1
+		rm -f /var/run/openvpn.pid
+		/usr/local/bin/openvpnctrl -s
+		EV="1"
+	else
+		echo "It's not running, so starting it now."
+		rm -f /var/run/openvpn.pid
+		/usr/local/bin/openvpnctrl -s
+		EV="1"
+	fi
+else
+	echo "Openvpn is enabled."
+
+	if [ -n "$pid" ]
+	then
+		echo "It's running as PID=$pid, stopping it now."
+        	/usr/local/bin/openvpnctrl -k
+		sleep 1
+                /bin/killall /usr/sbin/openvpn
+		EV="1"
+	fi
+
+	if [ -e /var/run/openvpn.pid ]
+	then
+		echo "/var/run/openvpn.pid: file exists, deleting it now."
+        	rm -f /var/run/openvpn.pid
+		EV="1"
+	fi
+fi
+
+exit $EV
+

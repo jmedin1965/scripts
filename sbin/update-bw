@@ -1,0 +1,27 @@
+#!/bin/bash
+
+url="https://vault.bitwarden.com/download/?app=cli&platform=linux"
+dest="/usr/local/scripts/bin"
+url="$(/usr/bin/wget --max-redirect=0 "$url" 2>&1 | /bin/fgrep Location:)"
+ver_old="$([ -x "$dest/bw" ] && "$dest/bw" --version 2>/dev/null || echo unknown)"
+
+echo "orig_url = $url"
+
+url="${url##Location: }"
+url="${url%% \[following\]}"
+
+file="$(/bin/basename "$url")"
+
+ver_new="${file##bw-linux-}"
+ver_new="${ver_new%%.zip}"
+
+echo "url     = $url"
+echo "file    = $file"
+echo "ver_old = $ver_old"
+echo "ver_new = $ver_new"
+
+if [ "$ver_new" != "$ver_old" ]
+then
+    echo "updating version $ver_old to $ver_new "
+    /usr/bin/wget "$url" -O - | /usr/bin/busybox unzip - -d "$dest" && /bin/chmod 755 "${dest}/bw"
+fi

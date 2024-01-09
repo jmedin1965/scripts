@@ -1,0 +1,8 @@
+
+check file email-alert-var_ipfire_dma_dma.conf  with path /var/ipfire/dma/dma.conf
+	if failed SHA1 checksum then
+		exec "/etc/monit/scripts/email.local-generate"
+
+check file email-alert-var_ipfire_dma_mail.conf with path /var/ipfire/dma/mail.conf
+	if failed SHA1 checksum then
+		exec "/etc/monit/scripts/email.local-generate"

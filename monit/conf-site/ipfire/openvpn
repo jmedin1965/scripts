@@ -1,0 +1,12 @@
+
+check program openvpn path /etc/monit/scripts/check-openvpn
+	group openvpn
+	if status != 0 
+	    include /etc/monit/templates/flapping-standard
+		then alert
+	depend openvpnctrl
+
+check file openvpnctrl with path /usr/local/bin/openvpnctrl
+	group openvpn
+	include /etc/monit/templates/rootctl-ipfire
+

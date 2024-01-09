@@ -1,0 +1,27 @@
+check process unbound with pidfile /var/run/unbound.pid
+  start program = "/etc/init.d/unbound start" with timeout 60 seconds
+  stop program = "/etc/init.d/unbound stop"
+    group dns_server
+    if failed host 127.0.0.1 port 53 type tcp protocol dns
+        include /etc/monit/templates/flapping-standard
+	then restart
+    if failed host 127.0.0.1 port 53 type udp protocol dns
+        include /etc/monit/templates/flapping-standard
+	then restart
+    depends unbound_bin
+    depends unbound_ctl
+    depends unbound_rc
+
+check file unbound_bin with path /usr/sbin/unbound
+        group dns_server
+        include /etc/monit/templates/rootbin
+
+check file unbound_ctl with path /usr/local/bin/unboundctrl
+        group dns_server
+        include /etc/monit/templates/rootctl-ipfire
+
+check file unbound_rc with path /etc/init.d/unbound
+        group dns_server
+        include /etc/monit/templates/rootinit.dbin
+
+
