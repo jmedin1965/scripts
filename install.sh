@@ -29,7 +29,7 @@ fi
 # add to /etc/profile.d
 for t in "$git_repo_local/profile.d/"*
 do
-    /bin/ln -fs "$t"  /etc/profile.d/$(/bin/basename "$t")
+    /bin/ln -fs "$t"  /etc/profile.d/$(/usr/bin/basename "$t")
 done
 
 # add to /etc/cron.daily/

@@ -1,5 +1,45 @@
 #!/bin/bash
 
+main()
+{
+    [ $# == 0 ] && error "Usage: $(/usr/bin/basename "$0") <client>..."
+
+    for client in "$@"
+    do
+        echo process: $client
+        cmd "$client" /opt/puppetlabs/bin/puppet resource service puppet ensure=stopped
+        ssldir=$(cmd "$client" /opt/puppetlabs/bin/puppet config print ssldir --section agent)
+        certname=$(cmd "$client" /opt/puppetlabs/bin/puppet config print certname --section agent)
+        echo ssldir=\"$ssldir\"
+        echo certname=\"$certname\"
+        [ -n "$ssldir" ] || error "Unable to get SSL directory"
+        [ -n "$certname" ] && /opt/puppetlabs/bin/puppetserver ca clean --certname "$certname"
+        cmd "$client" /bin/rm -rf "$ssldir"
+        cmd "$client" /opt/puppetlabs/bin/puppet resource service puppet ensure=running
+        for i in {1..10}
+        do
+            sleep 5
+            [ "$(/opt/puppetlabs/bin/puppetserver ca list | /bin/fgrep -c -n "$certname")" -gt 0 ] && break
+        done
+        /opt/puppetlabs/bin/puppetserver ca sign --certname "$certname"
+        cmd "$client" /opt/puppetlabs/bin/puppet agent --test
+
+    done
+}
+
+cmd()
+{
+    local c="$1"
+    shift
+    /usr/bin/ssh -l root "$c" "$@" || error "$c: $@" 
+}
+
+error()
+{
+    echo "Error: $@" > /dev/stderr
+    exit 1
+}
+
 read_ini()
 {
 	local file="$1"
@@ -28,6 +68,9 @@ read_ini()
 	done <<< "$(<$file)"
 
 }
+
+main "$@"
+exit $?
 
 read_ini /etc/puppetlabs/puppet/puppet.conf agent certname
 
