@@ -23,5 +23,10 @@ echo "ver_new = $ver_new"
 if [ "$ver_new" != "$ver_old" ]
 then
     echo "updating version $ver_old to $ver_new "
-    /usr/bin/wget "$url" -O - | /usr/bin/busybox unzip - -d "$dest" && /bin/chmod 755 "${dest}/bw"
+    if [ -e "${dest}/bw" ]
+    then
+        /bin/mv --force "${dest}/bw" "${dest}/bw.bak"
+        /usr/bin/wget "$url" -O - | /usr/bin/busybox unzip - -d "$dest" && /bin/chmod 755 "${dest}/bw"
+        [ $? == 0 ] && /bin/rm -f "${dest}/bw.bak"
+    fi
 fi
