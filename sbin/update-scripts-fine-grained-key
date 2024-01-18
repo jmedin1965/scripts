@@ -1,0 +1,14 @@
+#!/bin/bash
+
+bw="/usr/local/scripts/sbin/bw"
+config="/usr/local/scripts/.git/config"
+
+key="$("$bw" get item github.com)"
+key="${key##*fine grained token: }"
+key="${key%%\"*}"
+
+echo "got key=$key"
+
+/usr/bin/sudo /bin/cp "$config" "${config}.bak" &&
+/usr/bin/sed "s,\(^\s*pushurl = \).*,\1$key,g" < "${config}.bak" | /usr/bin/sudo /bin/tee "$config" &&
+/bin/rm -f "${config}.bak"
