@@ -1,0 +1,114 @@
+#!/bin/bash
+
+main()
+{
+    bw="/usr/local/scripts/bin/bw"
+    tmp="$( /usr/bin/readlink -f "$HOME/.ssh/tmp" )"
+    pinentry="/usr/bin/pinentry-x11"
+    #DEBUG="1"
+
+    if [ -x "$bw" ]
+    then
+
+        check_and_unlock
+
+        "$bw" "$@"
+    else
+        err "unable for find real bw application, exiting."
+    fi
+}
+
+err()
+{
+    echo "Error:" "$@" > /dev/stderr
+}
+
+info()
+{
+    [ -n "$DEBUG" ] && echo "Info:" "$@"
+}
+
+bw_locked()
+{
+    [ "$("$bw" unlock --check | /usr/bin/fgrep --count "Vault is unlocked!")" == 0 ]
+}
+
+bw_unlock()
+{
+    info "try to unlock by user input."
+
+    if [ -x "$pinentry" ]
+    then
+        info "try pinentry"
+
+        # REF: https://unix.stackexchange.com/questions/702683/how-to-call-pinentry-from-bash-script
+        local setdesc="unlock BitWarden CLI - BW"
+        local setprompt="Enter Master Password:"
+        local tty="$(/usr/bin/tty)"
+
+        BW_PASSWORD="$(echo -e "setdesc $setdesc\nsetprompt $setprompt\nGETPIN\n" | "$pinentry" -T "$tty" | /usr/bin/grep "^D ")"
+        BW_PASSWORD=${BW_PASSWORD#D }
+
+        info "Password is in: BW_PASSWORD"
+
+        unset BW_SESSION
+        export BW_PASSWORD
+        BW_SESSION="$("$bw" unlock --raw --passwordenv BW_PASSWORD)"
+    else
+        unset BW_SESSION
+        BW_SESSION="$("$bw" unlock --raw)"
+    fi
+
+    if [ $? == 0 ] 
+    then
+        unset BW_PASSWORD
+        export BW_SESSION
+        info got BW_SESSION=$BW_SESSION
+        echo -n "$BW_SESSION" > "${tmp}/bw"
+    else
+        unset BW_PASSWORD
+        error "unlock failed."
+        exit 1
+    fi
+}
+
+check_and_unlock()
+{
+    if "$bw" unlock --check > /dev/null 2>&1
+    then
+        info "bw is unlocked."
+        [ -n "$BW_SESSION" ] && echo -n "$BW_SESSION" > "${tmp}/bw"
+
+    elif tmp_is_tmpfs
+    then
+        info "yes tmp uis a tmpfs."
+        if [ -e "${tmp}/bw" ]
+        then
+            info "${tmp}/bw: try to use this session key."
+            export BW_SESSION="$(<${tmp}/bw)"
+            if "$bw" unlock --check > /dev/null 2>&1
+            then
+                info "unlocked by ${tmp}/bw."
+            else
+                info "unlock by ${tmp}/bw failed."
+                /bin/rm -f "${tmp}/bw"
+                bw_unlock
+            fi
+        else
+            info "${tmp}/bw: no saved session key found."
+            bw_unlock
+        fi
+    else
+        err "${tmp}: not a mounted tmpfs."
+    fi
+}
+
+tmp_is_tmpfs()
+{
+    set -- $(/bin/mount | /usr/bin/fgrep " $tmp ")
+    [ "$5" == tmpfs ]
+}
+
+main "$@"
+
+
