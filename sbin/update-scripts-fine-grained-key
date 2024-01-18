@@ -10,5 +10,5 @@ key="${key%%\"*}"
 echo "got key=$key"
 
 /usr/bin/sudo /bin/cp "$config" "${config}.bak" &&
-/usr/bin/sed "s,\(^\s*pushurl = \).*,\1$key,g" < "${config}.bak" | /usr/bin/sudo /bin/tee "$config" &&
-/bin/rm -f "${config}.bak"
+    /usr/bin/sed "s,\(^\s*pushurl = https://\).*\(@.*\),\1$key\2,g" < "${config}.bak" | /usr/bin/sudo /bin/tee "$config" &&
+/usr/bin/sudo /bin/rm -f "${config}.bak"
