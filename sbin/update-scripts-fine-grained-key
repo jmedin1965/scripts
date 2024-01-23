@@ -4,7 +4,7 @@ bw="/usr/local/scripts/sbin/bw"
 config="/usr/local/scripts/.git/config"
 
 key="$("$bw" get item github.com)"
-key="${key##*fine grained token: }"
+key="${key##*\"fine grained token\",\"value\":\"}"
 key="${key%%\"*}"
 
 echo "got key=$key"
