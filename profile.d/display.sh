@@ -1,5 +1,5 @@
 ip=""
-if [ -e "/mnt/c/WINDOWS/system32/netstat.exe" ]
+if [ -z "$DISPLAY" -a -e "/mnt/c/WINDOWS/system32/netstat.exe" ]
 then
   pwd="$(/bin/pwd)"
   cd /mnt/c
@@ -9,7 +9,5 @@ fi
 if [ -n "$ip" ]
 then
 	export DISPLAY=$ip:0
-else
-	export DISPLAY=:0
 fi
 unset ip pwd

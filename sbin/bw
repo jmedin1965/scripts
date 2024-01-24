@@ -4,13 +4,15 @@ main()
 {
     bw="/usr/local/scripts/bin/bw"
     tmp="$( /usr/bin/readlink -f "$HOME/.ssh/tmp" )"
-    pinentry="/usr/bin/pinentry-x11"
+    pinentry="$(pinentry)"
     #DEBUG="1"
 
     if [ -x "$bw" ]
     then
-
-        check_and_unlock
+        if [ "$1" != login ]
+        then
+            check_and_unlock
+        fi
 
         "$bw" "$@"
     else
@@ -18,9 +20,28 @@ main()
     fi
 }
 
+pinentry()
+{
+    if /usr/bin/xhost > /dev/null 2>&1
+    then
+        [ -x "/usr/bin/pinentry-x11" ]   && echo "/usr/bin/pinentry-x11"   && return
+        [ -x "/usr/bin/pinentry-gtk-2" ] && echo "/usr/bin/pinentry-gtk-2" && return
+    fi
+    [ -x "/usr/bin/pinentry-curses" ] && echo "/usr/bin/pinentry-curses" && return
+    [ -x "/usr/bin/pinentry" ]        && echo "/usr/bin/pinentry"        && return
+    err "Unable to find pinenrty, is it installed?"
+}
+
 err()
 {
-    echo "Error:" "$@" > /dev/stderr
+    if [ -x "$pinentry" ]
+    then
+        local tty="$(/usr/bin/tty)"
+        echo -e "setdesc $*\nMESSAGE\n" | "$pinentry" -T "$tty"
+    else
+        echo "Error:" "$@" > /dev/stderr
+    fi
+    exit 1
 }
 
 info()
@@ -35,6 +56,7 @@ bw_locked()
 
 bw_unlock()
 {
+    local ev="0"
     info "try to unlock by user input."
 
     if [ -x "$pinentry" ]
@@ -53,13 +75,13 @@ bw_unlock()
 
         unset BW_SESSION
         export BW_PASSWORD
-        BW_SESSION="$("$bw" unlock --raw --passwordenv BW_PASSWORD)"
+        BW_SESSION="$("$bw" unlock --raw --passwordenv BW_PASSWORD 2>&1)"
+        ev="$?"
     else
-        unset BW_SESSION
-        BW_SESSION="$("$bw" unlock --raw)"
+        err "no pinentry program found, please install one"
     fi
 
-    if [ $? == 0 ] 
+    if [ $ev == 0 ] 
     then
         unset BW_PASSWORD
         export BW_SESSION
@@ -67,7 +89,11 @@ bw_unlock()
         echo -n "$BW_SESSION" > "${tmp}/bw"
     else
         unset BW_PASSWORD
-        error "unlock failed."
+        err "unlock failed."
+        if [ "$BW_SESSION" == "You are not logged in." ]
+        then
+            err "You are not logged in, please log in first manually."
+        fi
         exit 1
     fi
 }
