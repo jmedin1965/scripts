@@ -1,6 +1,6 @@
 #!/bin/bash
 
-DEBUG="true"
+#DEBUG="true"
 log="/tmp/wsl-commands.log"
 
 main()
@@ -23,6 +23,23 @@ main()
 
     is_mounted "/home/$user"            || /bin/mount --bind "/mnt/c/Users/$user" "/home/$user"
     is_mounted "/home/$user/.gnupg.win" || /bin/mount --bind "/mnt/c/Users/$user/AppData/Roaming/gnupg" "/home/$user/.gnupg.win"
+
+    #
+    # update /etc/resolv.conf
+    #
+    # REF: https://gist.github.com/ThePlenkov/6ecf2a43e2b3898e8cd4986d277b5ecf
+    #
+    info "check and update dns on /etc/resolv.conf"
+    dns="$(/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command \
+        '$(Get-DnsClientServerAddress -AddressFamily IPv4).ServerAddresses | select-object -Unique | ForEach-Object { "nameserver $_" }' | \
+        /usr/bin/tr -d '\r')"
+    if [ -n "$dns" ]
+    then
+        info "updating DNS on /etc/resolv.conf"
+        info "dns = $dns"
+        /usr/bin/sed -i '/nameserver/d' /etc/resolv.conf
+        echo "$dns" >> /etc/resolv.conf
+    fi
 
     #start services
     /usr/sbin/service cron start
@@ -58,17 +75,23 @@ main()
     fi
     /bin/chmod 700 "$tmp"
     /bin/chown -R ${user}:${group} "/home/$user/.ssh/tmp"
+    info
 
     # make all foder mount points
     for drive in {c..z}
     do
         [ -d "/mnt/$drive" ] || /bin/mkdir "/mnt/$drive"
         is_mounted "/mnt/$drive" || /bin/mount -t drvfs -o users "${drive}:" "/mnt/$drive" > /dev/null 2>&1
+        info
     done
 
-    unset user tmp drive DEBUG
-
+    info "do mount -a"
     /bin/mount -a
+
+    info
+    info "all done."
+
+    unset user tmp drive DEBUG dns
 }
 
 
