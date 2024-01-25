@@ -5,7 +5,16 @@ main()
     bw="/usr/local/scripts/bin/bw"
     tmp="$( /usr/bin/readlink -f "$HOME/.ssh/tmp" )"
     pinentry="$(pinentry)"
+    xhost="/usr/bin/xhost"
+    tty="$(/usr/bin/tty)"
+    rm="/bin/rm"
+    mount="/bin/mount"
+    fgrep="/usr/bin/fgrep"
+    grep="/usr/bin/grep"
+
     #DEBUG="1"
+
+    do_init
 
     if [ -x "$bw" ]
     then
@@ -16,13 +25,24 @@ main()
 
         "$bw" "$@"
     else
-        err "unable for find real bw application, exiting."
+        err "unable for find real bw cli application, exiting."
     fi
+}
+
+do_init()
+{
+    [ -x "$pinentry" ] || err "Unable for find pinentry program"
+    [ -x "$xhost" ] || err "Unable for find xhost program"
+    [ -x "$tty" ] || err "Unable for find tty"
+    [ -x "$rm" ] || err "Unable for find rm program"
+    [ -x "$mount" ] || err "Unable for find mount program"
+    [ -x "$grep" ] || err "Unable for find grep program"
+    [ -x "$fgrep" ] || err "Unable for find fgrep program"
 }
 
 pinentry()
 {
-    if /usr/bin/xhost > /dev/null 2>&1
+    if "$xhost" > /dev/null 2>&1
     then
         [ -x "/usr/bin/pinentry-x11" ]   && echo "/usr/bin/pinentry-x11"   && return
         [ -x "/usr/bin/pinentry-gtk-2" ] && echo "/usr/bin/pinentry-gtk-2" && return
@@ -36,7 +56,6 @@ err()
 {
     if [ -x "$pinentry" ]
     then
-        local tty="$(/usr/bin/tty)"
         echo -e "setdesc $*\nMESSAGE\n" | "$pinentry" -T "$tty"
     else
         echo "Error:" "$@" > /dev/stderr
@@ -51,7 +70,7 @@ info()
 
 bw_locked()
 {
-    [ "$("$bw" unlock --check | /usr/bin/fgrep --count "Vault is unlocked!")" == 0 ]
+    [ "$("$bw" unlock --check | "$fgrep" --count "Vault is unlocked!")" == 0 ]
 }
 
 bw_unlock()
@@ -66,9 +85,8 @@ bw_unlock()
         # REF: https://unix.stackexchange.com/questions/702683/how-to-call-pinentry-from-bash-script
         local setdesc="unlock BitWarden CLI - BW"
         local setprompt="Enter Master Password:"
-        local tty="$(/usr/bin/tty)"
 
-        BW_PASSWORD="$(echo -e "setdesc $setdesc\nsetprompt $setprompt\nGETPIN\n" | "$pinentry" -T "$tty" | /usr/bin/grep "^D ")"
+        BW_PASSWORD="$(echo -e "setdesc $setdesc\nsetprompt $setprompt\nGETPIN\n" | "$pinentry" -T "$tty" | "$grep" "^D ")"
         BW_PASSWORD=${BW_PASSWORD#D }
 
         info "Password is in: BW_PASSWORD"
@@ -117,7 +135,7 @@ check_and_unlock()
                 info "unlocked by ${tmp}/bw."
             else
                 info "unlock by ${tmp}/bw failed."
-                /bin/rm -f "${tmp}/bw"
+                "$rm" -f "${tmp}/bw"
                 bw_unlock
             fi
         else
@@ -131,7 +149,7 @@ check_and_unlock()
 
 tmp_is_tmpfs()
 {
-    set -- $(/bin/mount | /usr/bin/fgrep " $tmp ")
+    set -- $("$mount" | "$fgrep" " $tmp ")
     [ "$5" == tmpfs ]
 }
 
