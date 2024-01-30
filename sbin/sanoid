@@ -2,9 +2,18 @@
 
 main()
 {
-    install
-    check_config
-    [ -x "/usr/sbin/$(/usr/bin/basename "$0")" ] && exec "/usr/sbin/$(/usr/bin/basename "$0")" "$@"
+    prog="$(/usr/bin/basename "$0")"
+    syncoid="/usr/sbin/$prog)"
+
+    case "$prog" in
+        update-sanoid)
+            install
+            check_config
+            ;;
+        *)
+            [ -x "$syncoid" ] && exec "$syncoid" "$@"
+            ;;
+    esac
 }
 
 #
@@ -12,6 +21,8 @@ main()
 #
 install()
 {
+    local ans
+
     if [ ! -x /usr/sbin/sanoid ]
     then
     	echo
@@ -36,7 +47,6 @@ install()
 		    exit 0
 		    ;;
 	    esac
-        unset ans
     fi
 }
 
@@ -58,7 +68,7 @@ header()
 
 
 #
-# check to make sure all vols are listedin the config file
+# check to make sure all vols are listed in the config file
 #
 check_vols()
 {
