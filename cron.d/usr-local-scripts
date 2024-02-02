@@ -1,6 +1,6 @@
-#!/bin/bash
-
-# cron.daily script to update local scripts
+#
+# cron.d script to update local scripts
+#
 
 SHELL=/bin/bash
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin

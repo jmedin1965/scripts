@@ -1,7 +1,7 @@
 #!/bin/bash
 
-#DEBUG="true"
-log="/tmp/wsl-commands.log"
+DEBUG="true"
+log="/var/log/wsl-commands.log"
 
 main()
 {
@@ -23,23 +23,6 @@ main()
 
     is_mounted "/home/$user"            || /bin/mount --bind "/mnt/c/Users/$user" "/home/$user"
     is_mounted "/home/$user/.gnupg.win" || /bin/mount --bind "/mnt/c/Users/$user/AppData/Roaming/gnupg" "/home/$user/.gnupg.win"
-
-    #
-    # update /etc/resolv.conf
-    #
-    # REF: https://gist.github.com/ThePlenkov/6ecf2a43e2b3898e8cd4986d277b5ecf
-    #
-    info "check and update dns on /etc/resolv.conf"
-    dns="$(/mnt/c/Windows/System32/WindowsPowerShell/v1.0/powershell.exe -Command \
-        '$(Get-DnsClientServerAddress -AddressFamily IPv4).ServerAddresses | select-object -Unique | ForEach-Object { "nameserver $_" }' | \
-        /usr/bin/tr -d '\r')"
-    if [ -n "$dns" ]
-    then
-        info "updating DNS on /etc/resolv.conf"
-        info "dns = $dns"
-        /usr/bin/sed -i '/nameserver/d' /etc/resolv.conf
-        echo "$dns" >> /etc/resolv.conf
-    fi
 
     #start services
     /usr/sbin/service cron start
@@ -103,7 +86,7 @@ info()
         then
             echo >> "$log"
         else
-            echo "Info:" "$@" >> "$log"
+            echo "Info: ${prog}: $(/bin/date):" "$@" >> "$log"
         fi
     fi
 }
