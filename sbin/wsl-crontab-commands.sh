@@ -50,7 +50,7 @@ info()
         then
             echo >> "$log"
         else
-            echo "Info: ${prog}: $(/bin/date):" "$@" >> "$log"
+            echo "$(/bin/date): ${prog}: Info:" "$@" >> "$log"
         fi
     fi
 }

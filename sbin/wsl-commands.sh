@@ -5,13 +5,12 @@ log="/var/log/wsl-commands.log"
 
 main()
 {
-    /bin/rm -f "$log"
-
     #
     # Get windows user and strip domain part
     #
     user="$(/usr/bin/id -u -n 1000)"
     group="$(/usr/bin/id -g -n 1000)"
+    prog="$(/bin/basename "$0")"
 
     info user=$user
     info tmp=$tmp
@@ -23,6 +22,9 @@ main()
 
     is_mounted "/home/$user"            || /bin/mount --bind "/mnt/c/Users/$user" "/home/$user"
     is_mounted "/home/$user/.gnupg.win" || /bin/mount --bind "/mnt/c/Users/$user/AppData/Roaming/gnupg" "/home/$user/.gnupg.win"
+
+    # update dns first before doing anithing else
+    "$(/bin/dirname "$0")/wsl-crontab-commands.sh"
 
     #start services
     /usr/sbin/service cron start
@@ -86,7 +88,7 @@ info()
         then
             echo >> "$log"
         else
-            echo "Info: ${prog}: $(/bin/date):" "$@" >> "$log"
+            echo "$(/bin/date): ${prog}: Info:" "$@" >> "$log"
         fi
     fi
 }
