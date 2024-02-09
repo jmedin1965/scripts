@@ -7,29 +7,48 @@ git_repo="https://jmedin1965@github.com/jmedin1965/scripts.git"
 readlink="/bin/readlink"
 [ -e /usr/bin/readlink ] && readlink="/usr/bin/readlink"
 
-# clone the repo if it does not exest, else git pull
+# clone the repo if it does not exist, else git pull
 if [ -d "${git_repo_local}/.git" ]
 then
     cd "${git_repo_local}"
-    /usr/bin/tty --quiet || /bin/sleep $(( $RANDOM % 120 + 1 ))
+    R="$RANDOM"
+    /bin/tty -s && R="0"
+    /usr/bin/tty --quiet || /bin/sleep $(( $R % 240 ))
     /usr/bin/git pull  > /dev/null
 else
     /usr/bin/git clone "$git_repo" "$git_repo_local"
 fi
 
 # add to path
-if [ -n "$git_repo_local" ] && ! echo "$PATH" | /bin/grep -q "$git_repo_local" ; then
-  export PATH="${git_repo_local}/sbin:${git_repo_local}/bin:$PATH"
+if [ -e "$git_repo_local/profile.d/usr-local-scripts.sh" ]
+then
+    # usr-local-scripts.sh unsets git_repo_local, so we save it here
+    t="$git_repo_local"
+    . "$git_repo_local/profile.d/usr-local-scripts.sh"
+    git_repo_local="$t"
 fi
 
 # add to /etc/profile.d
-/bin/ln -fs "$git_repo_local/profile.d/usr-local-scripts.sh"  /etc/profile.d/usr-local-scripts.sh
+for t in "$git_repo_local/profile.d/"*
+do
+    /bin/ln -fs "$t"  /etc/profile.d/$(/usr/bin/basename "$t")
+done
 
-# add to /etc/cron.daily/
+# add to /etc/cron.d/
 cron_d=""
-[ -d "/etc/fcron.daily" ] && cron_d="/etc/fcron.daily"
-[ -d "/etc/cron.daily" ]  && cron_d="/etc/cron.daily"
-[ -n "${cron_d}" ] && /bin/ln -fs "$git_repo_local/install.sh" "${cron_d}/usr-local-scripts.sh"
+[ -d "/etc/fcron.d" ] && cron_d="/etc/fcron.d"
+[ -d "/etc/cron.d" ]  && cron_d="/etc/cron.d"
+if [ -n "${cron_d}" ]
+then
+    # cleanup old 2024/02/02
+    /bin/rm -f "/etc/fcron.daily/usr-local-scripts.sh"
+    /bin/rm -f "/etc/cron.daily/usr-local-scripts.sh"
+
+    for t in "$git_repo_local/cron.d/"*
+    do
+        [ -e "$t" ] && /bin/ln -fs "$t" "${cron_d}/$(/bin/basename "$t")"
+    done
+fi
 
 vimlocal="/etc/vim/vimrc.local"
 # fix for ipfire, needs further fixing
@@ -49,5 +68,5 @@ then
 fi
 
 # do cleanup
-unset git_repo git_repo_local cron_d
+unset git_repo git_repo_local cron_d t
 

@@ -197,6 +197,16 @@ main()
 	        fi
         fi
 
+        # PCI PassThrough
+        #
+        # REF: https://pve.proxmox.com/wiki/PCI(e)_Passthrough
+        echo "
+vfio
+vfio_iommu_type1
+vfio_pci
+vfio_virqfd
+" > /etc/modules-load.d/iommu.conf
+
         info limit zfs memory limit
         mem="$( set -- $(/usr/bin/free --giga | /usr/bin/fgrep Mem:); echo $2 )"
         limit_g="8"
@@ -244,19 +254,13 @@ main()
     #
     # Remove subscription message
     #
+    # This has changed again
+    # REF: https://johnscs.com/remove-proxmox51-subscription-notice/
+    #
     if [ -e /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js ]
     then
-        if [ "$(grep -c "const subscription = .*data.status.*'active'" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js)" == 0 ]
-        then
-            info "subscrion message already removed"
-        else
-            info "remove the subscrion message"
-            sed -i.bak -z \
-                "s/const subscription =.*'active');/const subscription = false;/g" \
-                /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && \
-                systemctl restart pveproxy.service
-        fi
-        echo
+        log "INFO: check and fix subscription message"
+        sed -Ezi.bak "s/(Ext.Msg.show\(\{\s+title: gettext\('No valid sub)/void\(\{ \/\/\1/g" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && systemctl restart pveproxy.service
     fi
 
 }

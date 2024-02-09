@@ -1,0 +1,19 @@
+#!/bin/bash
+
+bw="/usr/local/scripts/sbin/bw"
+config="/usr/local/scripts/.git/config"
+
+if [ "$(/bin/whoami)" == root ]
+then
+    echo "don't run this as root!" > /dev/stderr
+else
+    key="$("$bw" get item github.com)"
+    key="${key##*\"fine grained token\",\"value\":\"}"
+    key="${key%%\"*}"
+
+    echo "got key=$key"
+
+    /usr/bin/sudo /bin/cp "$config" "${config}.bak" &&
+        /usr/bin/sed "s,\(^\s*pushurl = https://\).*\(@.*\),\1$key\2,g" < "${config}.bak" | /usr/bin/sudo /bin/tee "$config"
+        # /usr/bin/sudo /bin/rm -f "${config}.bak"
+fi

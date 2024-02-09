@@ -1,0 +1,178 @@
+#!/bin/bash
+
+main()
+{
+    prog="$(/usr/bin/basename "$0")"
+    syncoid="/usr/sbin/$prog)"
+
+    case "$prog" in
+        update-sanoid)
+            install
+            check_config
+            ;;
+        *)
+            [ -x "$syncoid" ] && exec "$syncoid" "$@"
+            ;;
+    esac
+}
+
+#
+# Install if needed
+#
+install()
+{
+    local ans
+
+    if [ ! -x /usr/sbin/sanoid ]
+    then
+    	echo
+    	echo -n "sanoid not installed. Do you want to install it [y/n] ? "
+    	read ans
+    	case "$ans" in
+    	[yY]*)
+    		echo "installing sanoid from https://github.com/jimsalterjrs/sanoid.git"
+            echo "to /opt/sanoid"
+            /usr/bin/apt install -y debhelper libcapture-tiny-perl libconfig-inifiles-perl pv lzop mbuffer build-essential git
+            cd /opt || (echo "cd to /opt failed, exiting"; exit 1)
+            [ -d sanoid/.git ] || /usr/bin/git clone https://github.com/jimsalterjrs/sanoid.git
+            cd sanoid
+            /usr/bin/git checkout $(git tag | grep "^v" | tail -n 1)
+            [ -d debian ] || /usr/bin/ln -s packages/debian .
+            [ -e "../sanoid_*_all.deb" ] || /usr/bin/dpkg-buildpackage -uc -us
+            /usr/bin/apt install ../sanoid_*_all.deb
+            /usr/bin/systemctl enable --now sanoid.timer
+		    ;;
+	    *)
+		    echo "exiting."
+		    exit 0
+		    ;;
+	    esac
+    fi
+}
+
+header()
+{
+    /usr/bin/cat - <<-END
+	#
+	# This config file is built from;
+	#
+	#    /etc/pve/local/sanoid.conf
+	#    /etc/pve/nodes/sanoid-templates.conf
+	#
+	# Please do not edit directly as changes will be lost. Instead edit the top two files
+	# and then run update-sanoid
+	#
+	
+	END
+}
+
+
+#
+# check to make sure all vols are listed in the config file
+#
+check_vols()
+{
+    local msg i name conf_list 
+    declare -A conf_list
+
+    # a list of volumes in sanoid.conf file
+    conf_list=()
+    while read name
+    do
+        case "$name" in
+            "["*"]")
+
+                # remove the sqare blackets
+                name=${name##*[}
+                name=${name%%]*}
+
+                # split the volume path to an array
+                IFS=/ read -a i <<< "$name"
+                conf_list["$name"]="${i[0]}" # an entry for this config
+                conf_list["${i[0]}"]="$name" # also create an entry for the pool name
+                ;;
+        esac
+
+    done <<< "$(</etc/pve/local/sanoid.conf)"
+
+    # now process all zfs volumes
+    echo
+    echo "# auto generated start"
+    echo
+    while read name
+    do
+        #echo check $name
+
+        # split the volume path to an array
+        IFS=/ read -a i <<< "$name"
+
+        if [ -n "${conf_list[$name]}" ]
+        then
+            msg="  exists, ignoring"
+
+        elif [ "${#i[@]}" == 2 ]
+        then
+            shopt -s extglob
+            case "${i[1]}" in
+                ROOT)
+                    echo "[$name]"
+                    echo "    use_template = root"
+                    echo "    recursive = yes"
+                    echo
+                    ;;
+                data|data[0-9]*)
+                    echo "[$name]"
+                    echo "    use_template = data"
+                    echo "    recursive = yes"
+                    echo
+                    ;;
+                pvs|pvs[0-9]*)
+                    echo "[$name]"
+                    echo "    use_template = pvs"
+                    echo "    recursive = yes"
+                    echo
+                    ;;
+                subvol-*|vm-*)
+                    msg="  ignore vm or ct disk"
+                    ;;
+                *)
+                    echo "# No rule for ${i[1]}"
+                    echo "#[$name]"
+                    echo "#    use_template = unknown"
+                    echo "#    recursive = yes"
+                    echo
+                    ;;
+
+            esac
+        else
+            msg="  ignore"
+        fi
+
+        #echo "$msg"
+
+    done <<< "$(/usr/sbin/zfs list -H -o name)"
+
+    echo "# auto generated end"
+    echo
+}
+
+#
+# check config file: /etc/sanoid/sanoid.conf
+# use /etc/pvs/local/sanoid.conf if it exists
+#
+check_config()
+{
+    [ -d /etc/sanoid ] || mkdir /etc/sanoid
+
+    if [ -e /etc/pve/local/sanoid.conf ]
+    then
+        [ -e /etc/sanoid/sanoid.conf ] && /usr/bin/mv /etc/sanoid/sanoid.conf /etc/sanoid/sanoid.conf.bak
+        header > /etc/sanoid/sanoid.conf
+        /usr/bin/cat /etc/pve/local/sanoid.conf >> /etc/sanoid/sanoid.conf
+        check_vols >> /etc/sanoid/sanoid.conf
+        [ -e /etc/pve/nodes/sanoid-templates.conf ] && /usr/bin/cat /etc/pve/nodes/sanoid-templates.conf >> /etc/sanoid/sanoid.conf
+    fi
+}
+
+main "$@"
+
