@@ -9,7 +9,12 @@ main()
     local os_release
     local os_core
     local Process Version Build Other
+    local check_os_auto_add_sha1sum="0"
+    local check_os_auto_add_f="$conf_d/check_os_auto"
     local EV="0"
+
+    # save sha1sum
+    [ -e "$check_os_auto_add_f" ] && check_os_auto_add_sha1sum="$(sha1sum "$check_os_auto_add_f")"
 
     status_or_err "$(monit_uptime)"
     status_or_err "Monit $(monit_uptime -v) uptime: $(monit_uptime -s)s"
@@ -75,7 +80,12 @@ main()
         check_os_auto_add include "${conf_groups}/proxmox/*"
     fi
 
-    echo "$check_os_auto" > "$conf_d/check_os_auto"
+    # Process $check_os_auto_add_f file
+    if [ "$check_os_auto_add_sha1sum" != "$(echo "$check_os_auto" | sha1sum)" ]
+    then
+        echo "$check_os_auto" > "$conf_d/check_os_auto"
+        /usr/bin/monit reload
+    fi
 
     err_print
 

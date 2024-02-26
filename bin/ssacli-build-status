@@ -1,0 +1,2 @@
+#!/bin/sh
+/usr/sbin/ssacli ctrl slot=0 ld all show

@@ -1,0 +1,70 @@
+#!/bin/sh -e
+#
+# rc.local
+#
+# This script is executed at the end of each multiuser runlevel.
+# Make sure that the script will "exit 0" on success or any other
+# value on error.
+#
+# In order to enable or disable this script just change the execution
+# bits.
+#
+# By default this script does nothing.
+
+log()
+{
+    echo "$(date):" "$@" >> /var/log/rc.local.log
+    echo "$(date):" "$@"
+}
+
+scripts_d="/etc/pve/rc.local.d"
+script_try="60"
+script_sleep="10"
+
+log "starting rc.local"
+
+if [ -d "/etc/pve" ]
+then
+    log "checking scripts in $scripts_d"
+    i="$script_try"
+    while [ ! -d "$scripts_d" -a "$i" != 0 ]
+    do
+        i=`expr $i - 1`
+        log "  $scripts_d: does not exist, wait for pve to start"
+        sleep $script_sleep
+    done
+
+    log "  done waiting"
+    for script in "$scripts_d/"*
+    do
+        log "  check script: $script"
+        if [ -e "$script" ]
+        then
+            log "  runing $script"
+            . "$script"
+        fi
+    done
+else
+    log "  no /etc/pve, skipping"
+fi
+
+if [ -d /etc/rc.local.d ]
+then
+    log "checking scripts in /etc/rc.local.d"
+
+    for script in "/etc/rc.local.d/"*
+    do
+        log "  check script: $script"
+        if [ -e "$script" ]
+        then
+            log "  runing $script"
+            . "$script"
+        fi
+    done
+fi
+
+log "done rc.local"
+
+exit 0
+ 
+

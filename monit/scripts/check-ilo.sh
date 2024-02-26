@@ -1,24 +1,30 @@
 #!/bin/bash
 
-source "$(/usr/bin/dirname "$0")/functions.sh"
-
 host="admin@mgt-host04.gli.lan"
-ssh_opts="-oKexAlgorithms=+diffie-hellman-group1-sha1"
+host="admin@mgt-host04.jmsh-home.com"
+host="admin@10.10.1.33"
+#host="admin@mgt-host04.gli.lane"
+ssh_opts=(
+        "-oKexAlgorithms=+diffie-hellman-group1-sha1" 
+        "-oConnectTimeout=5"
+    )
 
 # warn if fan percent is thi value or higher
 fan_warn="45"
 
 declare -A ilo_data
 
+EV="0"
+
 main()
 {
     local val
     local scale
     local warn="no"
-    local EV="0"
 
-    get_ilo_values $ssh_opts  "$host"
+    get_values
 
+    echo
     for fan in 1 2 3 4 5 6 7 8
     do
         val="${ilo_data[/system1/fan$fan/DesiredSpeed]}"
@@ -27,31 +33,34 @@ main()
         then
             scale="$(set -- $val; echo $2)"
             val="$(set -- $val; echo $1)"
-            info "${ilo_data[/system1/fan$fan/DeviceID]}: ${ilo_data[/system1/fan$fan/OperationalStatus]}: $val $scale"
+            echo "${ilo_data[/system1/fan$fan/DeviceID]}: ${ilo_data[/system1/fan$fan/OperationalStatus]}: $val $scale"
             [ "$val" -ge "$fan_warn" ] && warn="yes"
         fi
     done
 
     if [ "$warn" == yes ] 
     then
-        info "$(ilo_cmd 'fan pid 11 sp 5900')"
-        info "$(ilo_cmd 'fan pid 31 sp 5300')"
-        info "$(ilo_cmd 'fan pid 40 sp 4700')"
-        info "$(ilo_cmd 'fan pid 42 lo 10000')"
-        info "$(ilo_cmd 'fan pid 46 sp 4400')"
-        info "$(ilo_cmd 'fan pid 50 sp 3800')"
-        err "Fan speed greater that $fan_warn $scale, setting fan speed."
-        EV="1"
+        ilo_cmd 'fan pid 11 sp 5900'
+        ilo_cmd 'fan pid 31 sp 5300'
+        ilo_cmd 'fan pid 40 sp 4700'
+        ilo_cmd 'fan pid 42 lo 10000'
+        ilo_cmd 'fan pid 46 sp 4400'
+        ilo_cmd 'fan pid 50 sp 3800'
+        echo "Warning: Fan speed greater that $fan_warn $scale, setting fan speed."
+        EV=$((EV + 1))
     fi
 
-    err_print
     return $EV
 }
 
 ilo_cmd()
 {
-    #echo /usr/bin/ssh $ssh_opts $host "$1"
-    /usr/bin/ssh $ssh_opts $host "$1" | /usr/bin/grep -v -e '^\s*$'
+    local str
+
+    str="$(/usr/bin/ssh "${ssh_opts[@]}" $host "$1")"
+    EV=$((EV + $?))
+    str="$( echo "$str" | /usr/bin/grep -v -e '^\s*$' )"
+    EV=$((EV + $?))
 }
 
 #/map1/oemhp_alertmail1                
@@ -73,12 +82,21 @@ ilo_cmd()
 
 
 
-get_ilo_values()
+get_values()
 {
     local var=""
     local mode=""
+    local str
 
-    #/usr/bin/ssh $ssh_opts $host "show -a" | /usr/bin/sed 's/\r$//' | while read line
+    # get result and capture return value
+    str="$(/usr/bin/ssh "${ssh_opts[@]}" $host "show -a")"
+    EV=$((EV + $?))
+
+    #remove CR
+    str="$(echo "$str" | /usr/bin/sed 's/\r$//')"
+    EV=$((EV + $?))
+
+    #/usr/bin/ssh ${ssh_opts[@]}" $host "show -a" | /usr/bin/sed 's/\r$//' | while read line
     while read -r line
     do
         case "$line" in
@@ -105,7 +123,7 @@ get_ilo_values()
                 fi
                 ;;
         esac
-    done <<< "$(/usr/bin/ssh "$@" "show -a" | /usr/bin/sed 's/\r$//')"
+    done <<< "$str"
 }
 
 main "$@"

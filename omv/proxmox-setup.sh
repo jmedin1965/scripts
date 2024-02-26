@@ -6,6 +6,41 @@ extra_packages="vim ethtool"
 
 main()
 {
+    local EV="0"
+
+    if [ $# != 0 ]
+    then
+        while [ $# != 0 ]
+        do
+            case "$1" in
+                monit)
+                    ISTTY="MONIT"
+                    ;;
+                daily)
+                    removeSubscriptionMessage
+                    ;;
+                rc-local)
+                    install_rc_local
+                    ;;
+                subscription)
+                    removeSubscriptionMessage
+                    EV="$?"
+                    ;;
+                *)
+                    echo "$(/usr/bin/basename "$0"): unrecognized option \"$1\"" > /dev/stderr
+                    echo "Options:" > /dev/stderr
+                    echo "  daily        - do daily tasks only" > /dev/stderr
+                    echo "  rc-local     - install rc-local scripts" > /dev/stderr
+                    echo "  subscription - check and remove subscription message" > /dev/stderr
+                    echo "  monit - use MONIT format for info messages" > /dev/stderr
+                    exit 1
+                    ;;
+            esac
+            shift
+        done
+        exit "$EV"
+    fi
+
     info "remove subscription apt repos"
     rm -f /etc/apt/sources.list.d/pmg-enterprise.list
     rm -f /etc/apt/sources.list.d/pve-enterprise.list
@@ -110,18 +145,7 @@ main()
             /etc/apt/sources.list.d/pgm-install-repo.list
     fi
 
-	if [ "$ID" == debian -o "$ID" == ubuntu ]
-	then
-    	info "apt update and upgrade"
-    	apt update
-    	apt -y upgrade
-    	echo
-    elif [ "$ID" == centos ]
-    then
-    	info "yum update"
-        yum -y update
-	fi
-
+    # Virtual machine, need to add others like vmware
     info "manufacturere=$manufacturere, check if we are a virtual machine, install agent if we are."
     if [ "$manufacturere" == QEMU ]
 	then
@@ -136,7 +160,8 @@ main()
 		fi
 	fi
 
-    info "Install extra packages: $extra_packages"
+    # extra packages based on OS
+    info "Install extra packages based on os: $ID: $extra_packages"
 	if [ "$ID" == debian ]
 	then
     	apt install -y $extra_packages
@@ -144,7 +169,17 @@ main()
     then
     	yum install -y $extra_packages
 	fi
-    echo
+	if [ "$ID" == debian -o "$ID" == ubuntu ]
+	then
+    	info "apt update and upgrade"
+    	apt update
+    	apt -y upgrade
+    	echo
+    elif [ "$ID" == centos ]
+    then
+    	info "yum update"
+        yum -y update
+	fi
 
     info fix the mouse feature annoyance in vim
 	mkdir -p /etc/vim
@@ -240,36 +275,93 @@ main()
     #echo dist-upgrade
     #apt dist-upgrade -y
 
-
-    #
-    # Remove subscription message
-    #
-    if [ -e /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js ]
-    then
-        if [ "$(grep -c "const subscription = .*data.status.*'active'" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js)" == 0 ]
-        then
-            info "subscrion message already removed"
-        else
-            info "remove the subscrion message"
-            sed -i.bak -z \
-                "s/const subscription =.*'active');/const subscription = false;/g" \
-                /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && \
-                systemctl restart pveproxy.service
-        fi
-        echo
-    fi
-
+    removeSubscriptionMessage
 }
 
+install_rc_local()
+{
+    if [ ! -e /etc/systemd/system/rc-local.service ]
+    then
+        cp /usr/local/scripts/etc/systemd/system/rc-local.service /etc/systemd/system/rc-local.service
+
+    fi
+
+    if [ ! -e /etc/rc.local ]
+    then
+        cp /usr/local/scripts/etc/rc.local /etc/rc.local
+        chmod +x /etc/rc.local
+        systemctl enable rc-local
+    fi
+    
+    if [ ! -e /etc/logrotate.d/rc.local ]
+    then
+        cp /usr/local/scripts/etc/logrotate.d/rc.local /etc/logrotate.d/rc.local
+    fi
+
+    if [ ! -d /etc/rc.local.d ]
+    then
+        mkdir /etc/rc.local.d
+    fi
+}
+
+#
+# Remove subscription message
+#
+removeSubscriptionMessage()
+{
+    local EV="0"
+
+    #local ok_str="const subscription = false;"
+    local ok_str="void({ //"
+
+    if [ -e /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js ]
+    then
+        info "check proxmox subscrion message..."
+
+        if [ "$(grep -c "$ok_str" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js)" -gt 0 ]
+        then
+            info "  subscrion message already removed."
+        else
+            info "  subscrion message exists, will try to remove..."
+            #sed -i.bak -z "s/${err_str}/${ok_str}/g" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js
+
+            sed -Ezi.bak "s/(Ext.Msg.show\(\{\s+title: gettext\('No valid sub)/void\(\{ \/\/\1/g" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js
+
+            EV="1"
+
+            if [ "$(grep -c "$ok_str" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js)" -gt 0 ]
+            then
+                info "  subscrion message removed, restarting GUI..."
+                systemctl restart pveproxy.service
+            else
+                info "  failed to remove subscrion message!"
+            fi
+        fi
+    fi
+
+    return "$EV"
+}
+
+ISTTY="$(/usr/bin/tty -s && echo TRUE)"
 log()
 {
-	local date="$(/bin/date +%d'-'%m'-'%y' '%H':'%M':'%S)" 
-	echo "${date}:" "$@"
+    if [ "$ISTTY" == "MONIT" ]
+    then
+	    echo "$@"
+    else
+	    local date="$(/bin/date +%d'-'%m'-'%y' '%H':'%M':'%S)" 
+	    echo "${date}:" "$@"
+    fi
 }
 
 info()
 {
-	log "INFO:" "$@"
+	[ "$ISTTY" == "TRUE" -o "$ISTTY" == "MONIT" ] && log "INFO:" "$@"
+}
+
+monit()
+{
+	echo "INFO:" "$@"
 }
 
 warning()
@@ -279,7 +371,7 @@ warning()
 
 error()
 {
-	log "ERROR:" "$@"
+	log "ERROR:" "$@" > /dev/stderr
 }
 
 vimrc()

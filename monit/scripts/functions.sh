@@ -145,11 +145,13 @@ get_os_info()
 #
 sha1sum()
 {
-        if [ $# != 0 ]
+        if [ $# == 0 ]
         then
-                set -- $(/usr/bin/sha1sum "$1")
-                echo $1
+            set -- $(/usr/bin/sha1sum)
+        else
+            set -- $(/usr/bin/sha1sum "$1")
         fi
+        echo $1
 }
 
 # auto_generated_msg_start - echo a standard auto-generated message
