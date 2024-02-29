@@ -27,7 +27,12 @@ install()
     then
     	echo
     	echo -n "sanoid not installed. Do you want to install it [y/n] ? "
-    	read ans
+        if /usr/bin/tty -s
+        then
+    	    read ans
+        else
+            ans="n"
+        fi
     	case "$ans" in
     	[yY]*)
     		echo "installing sanoid from https://github.com/jimsalterjrs/sanoid.git"
@@ -59,6 +64,10 @@ header()
 	#    /etc/pve/local/sanoid.conf
 	#    /etc/pve/nodes/sanoid-templates.conf
 	#
+	# By:
+	#
+	#    $(/bin/readlink -f "$(/bin/dirname "$0")")/${prog}
+	#
 	# Please do not edit directly as changes will be lost. Instead edit the top two files
 	# and then run update-sanoid
 	#
@@ -77,23 +86,26 @@ check_vols()
 
     # a list of volumes in sanoid.conf file
     conf_list=()
-    while read name
-    do
-        case "$name" in
-            "["*"]")
+    if [ -e /etc/pve/local/sanoid.conf ]
+    then
+        while read name
+        do
+            case "$name" in
+                "["*"]")
 
-                # remove the sqare blackets
-                name=${name##*[}
-                name=${name%%]*}
+                    # remove the sqare blackets
+                    name=${name##*[}
+                    name=${name%%]*}
 
-                # split the volume path to an array
-                IFS=/ read -a i <<< "$name"
-                conf_list["$name"]="${i[0]}" # an entry for this config
-                conf_list["${i[0]}"]="$name" # also create an entry for the pool name
-                ;;
-        esac
+                    # split the volume path to an array
+                    IFS=/ read -a i <<< "$name"
+                    conf_list["$name"]="${i[0]}" # an entry for this config
+                    conf_list["${i[0]}"]="$name" # also create an entry for the pool name
+                    ;;
+            esac
 
-    done <<< "$(</etc/pve/local/sanoid.conf)"
+        done <<< "$(</etc/pve/local/sanoid.conf)"
+    fi
 
     # now process all zfs volumes
     echo
@@ -121,9 +133,10 @@ check_vols()
                     echo
                     ;;
                 data|data[0-9]*)
-                    echo "[$name]"
-                    echo "    use_template = data"
-                    echo "    recursive = yes"
+                    echo "# Ignore Data for now. Need to do the VM's individually"
+                    echo "#[$name]"
+                    echo "#    use_template = data"
+                    echo "#    recursive = yes"
                     echo
                     ;;
                 pvs|pvs[0-9]*)
@@ -156,6 +169,32 @@ check_vols()
     echo
 }
 
+# pvesm path local-zfs:vm-130-disk-0
+# /dev/zvol/rpool/data/vm-130-disk-0
+# 
+# pvesm list local-zfs --vmid 102
+#
+# pvesm status
+#
+# pvesh get /storage/local-zfs 
+#
+# pvesh get /storage/local-zfs --output-format yaml | fgrep "type: zfspool"
+# pvesh get /storage/local-zfs --output-format yaml | fgrep "storage:"  
+#
+# pvesh get /nodes/host04/qemu/ --output-format yaml | fgrep -e status: -e vmid:
+#
+# pvesh get /nodes/host04/lxc/102/config --output-format yaml | grep -e 'mp[0-9]\+:' -e rootfs:
+#
+# get /nodes/host04/qemu/133/config --output-format yaml | grep -e 'scsi[0-9]\+:' -e 'sata[0-9]\+:' -e 'virtio[0-9]\+:' -e 'ide[0-9]\+:'
+#
+# check for locks
+# pvesh get /nodes/host04/lxc/115/pending --output-format yaml | # look for key: lock and it's value on next line; disk
+#
+vm_storage()
+{
+    echo "something"
+}
+
 #
 # check config file: /etc/sanoid/sanoid.conf
 # use /etc/pvs/local/sanoid.conf if it exists
@@ -164,14 +203,15 @@ check_config()
 {
     [ -d /etc/sanoid ] || mkdir /etc/sanoid
 
-    if [ -e /etc/pve/local/sanoid.conf ]
-    then
-        [ -e /etc/sanoid/sanoid.conf ] && /usr/bin/mv /etc/sanoid/sanoid.conf /etc/sanoid/sanoid.conf.bak
-        header > /etc/sanoid/sanoid.conf
-        /usr/bin/cat /etc/pve/local/sanoid.conf >> /etc/sanoid/sanoid.conf
-        check_vols >> /etc/sanoid/sanoid.conf
-        [ -e /etc/pve/nodes/sanoid-templates.conf ] && /usr/bin/cat /etc/pve/nodes/sanoid-templates.conf >> /etc/sanoid/sanoid.conf
-    fi
+    [ -e /etc/sanoid/sanoid.conf ] && /usr/bin/mv /etc/sanoid/sanoid.conf /etc/sanoid/sanoid.conf.bak
+
+    header > /etc/sanoid/sanoid.conf
+
+    [ -e /etc/pve/local/sanoid.conf ] && /usr/bin/cat /etc/pve/local/sanoid.conf >> /etc/sanoid/sanoid.conf
+
+    check_vols >> /etc/sanoid/sanoid.conf
+
+    [ -e /etc/pve/nodes/sanoid-templates.conf ] && /usr/bin/cat /etc/pve/nodes/sanoid-templates.conf >> /etc/sanoid/sanoid.conf
 }
 
 main "$@"
