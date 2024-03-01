@@ -4,7 +4,7 @@ SSH_AGENT="ssh-agent"
 AUTH_SOCK_ORIG=""
 
 # Cygwin ssh-agent socket
-if [ "$(/usr/bin/uname -o)" == "Cygwin" ]
+if [ "$(/bin/uname -o)" == "Cygwin" ]
 then
     AUTH_SOCK=~/.ssh/ssh-agent-pageant.sock
     SSH_AGENT="/usr/bin/ssh-pageant"
