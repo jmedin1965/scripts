@@ -5,6 +5,10 @@
 shopt -s extglob
 
 local_node="$(/bin/basename "$(/bin/readlink  /etc/pve/local)" )" # name of this node
+to_storage=""   # storage we are copying to
+to_node=""      # node we are copying to
+prog=""         # this script's name
+
 declare -A cluster_pool=()  # list of pool names to location mappings
 declare -A vm_sync_status=() # a list of vms and disks being processed, containing sync status
 declare -A vm_node=()       # node vm is on
@@ -13,12 +17,13 @@ declare -A vm_status=()     # status, running stopped, etc
 declare -A vm_local=()      # is it local to this node ? 1/0
 declare -A vm_conf=()       # path to vm conf file
 
+declare -A error_list=()    # list of errors as they happen, user by print_results
+
 vm_storage_list=()             # a list of found disks, returned by get_vm_storage
 declare -A vm_storage_from=()  # storage we are copying from, indexed by disk name
 declare -A vm_storage_to=()    # storage we are copying to, indexed by disk name
 declare -A vm_storage_disk=()  # the vm a disk belongs to, indexed by disk name
 
-error_list=()               # a list of errors
 
 # command line options
 opt_force=""
@@ -49,6 +54,7 @@ main()
             ;;
         sanoid-sync)
             sanoid_sync "$@"
+            print_results
             ;;
         *)
             err "$prog: Unknown command"
@@ -56,6 +62,9 @@ main()
             ;;
     esac
 }
+
+
+######## < update-sanoid > ########
 
 
 #
@@ -112,7 +121,7 @@ header()
 #    $(/bin/readlink -f "$(/bin/dirname "$0")")/${prog}
 #
 # Please do not edit directly as changes will be lost. Instead edit the top two files
-# and then run update-sanoid
+# and then run $prog
 #
 
 END
@@ -167,7 +176,6 @@ check_vols()
 
         elif [ "${#i[@]}" == 2 ]
         then
-            shopt -s extglob
             case "${i[1]}" in
                 ROOT)
                     echo "[$name]"
@@ -175,14 +183,14 @@ check_vols()
                     echo "    recursive = yes"
                     echo
                     ;;
-                data|data[0-9]*)
+                data|data+([0-9]))
                     echo "# Ignore Data for now. Need to do the VM's individually"
                     echo "#[$name]"
                     echo "#    use_template = data"
                     echo "#    recursive = yes"
                     echo
                     ;;
-                pvs|pvs[0-9]*)
+                pvs|pvs+([0-9]))
                     echo "[$name]"
                     echo "    use_template = pvs"
                     echo "    recursive = yes"
@@ -198,7 +206,6 @@ check_vols()
                     echo "#    recursive = yes"
                     echo
                     ;;
-
             esac
         else
             msg="  ignore"
@@ -254,6 +261,8 @@ check_config()
 }
 
 
+######## < sanoid-sync > ########
+
 
 sanoid_sync()
 {
@@ -272,6 +281,8 @@ sanoid_sync()
         do
             case "$arg" in
                 +([0-9]))
+                            list+=("$arg");;
+                all|all:*)
                             list+=("$arg");;
                 +(--help|-h))
                             usage;;
@@ -299,24 +310,19 @@ sanoid_sync()
             esac
         done
     fi
-
-    # process all errors encountered
-    for er in "${error_list[@]}"
-    do
-        err "$er"
-    done
 }
 
 usage()
 {
-    echo "Usage: $(/bin/basename "$0") <vm id>|<vm single disk:to-pool> ... <to-node:to-storage>" > /dev/stderr
+    echo "Usage: $(/bin/basename "$0") <vm id|all>|<vm single disk:to-pool> ... <to-node:to-storage>" > /dev/stderr
     echo "    sync/move 'vm by it's id or a single disk' to to-storage on to-node" > /dev/stderr
     echo > /dev/stderr
     echo "Where:" > /dev/stderr
-    echo "    <vm id> is copied or moved to <to-node:to-storage>" > /dev/stderr
+    echo "    <vm id|all> is copied or moved to <to-node:to-storage>. all means all local vm's" > /dev/stderr
     echo "    <vm single disk:to-pool> is copied to an alternate storage pool on to-node" > /dev/stderr
-    echo "    --move  - move vm after sync" > /dev/stderr
-    echo "    --force - force the zfs storage sync (be carefull with this option)" > /dev/stderr
+    echo "    --move|-m    - move vm after sync" > /dev/stderr
+    echo "    --force|-f   - force the zfs storage sync (be carefull with this option)" > /dev/stderr
+    echo "    --dry-run|-n - do not sync, just display the sync command only" > /dev/stderr
     echo > /dev/stderr
     exit 0
 }
@@ -338,8 +344,7 @@ info()
 
 err()
 {
-    msg "Error:" "$@"
-    error_list+=("$@")
+    msg "Error:" "$@" > /dev/stderr
 }
 
 
@@ -431,6 +436,13 @@ get_vm_storage()
     done
 }
 
+# given a vm number, find the config file and populate info for this vm
+#
+#   vm_local[$vm]
+#   vm_node[$vm]="$node"
+#   vm_type[$vm]="$type"
+#   vm_conf[$vm]="$config"
+#
 get_vm_info()
 {
     local vm conf config
@@ -451,7 +463,7 @@ get_vm_info()
                     info process: $node $type $conf
                     if [ "$node" == local ]
                     then
-                        info local
+                        info "$vm: is local"
                         vm_local[$vm]="1"
                     else
                         [ "$type" == "qemu-server" ] && type="qemu"
@@ -495,9 +507,7 @@ sync_vms()
         to_pool="${cluster_pool["$to_storage"]}"
         if [  -z "$to_node" -o "$to_node" == "$local_node" ]
         then
-            to="${to_pool}${to_vol}"
-        else
-            to="root@${to_node}-m:${to_pool}${to_vol}"
+            to_node="$local_node"
         fi
 
         info "processing vms = $@"
@@ -512,11 +522,45 @@ sync_vms()
             case "$vm" in
                 --force|-f)     opt_force="--force-delete";;
                 --move|-m)      opt_move="1";;
-                --dry-run|-n)  opt_dry_run="1";;
-                *)          sync_vm "$vm";;
+                --dry-run|-n)   opt_dry_run="1";;
+                all|all:*)      sync_all "$vm";;
+                *)              sync_vm "$vm";;
             esac
         done
     fi
+}
+
+
+#
+# sync_all - sync all local vms
+#
+sync_all()
+{
+    local arg vm
+    local node
+
+    for arg in "$@"
+    do
+        node="${arg##*:}"
+        case "$node" in
+            "") node="nodes";;
+            all) node="nodes";;
+            *) node="nodes/$node";;
+        esac
+        while read vm
+        do
+            if [ -e "$vm" ]
+            then
+                vm="${vm##*/}"
+                vm="${vm%.conf}"
+                if [[ "$vm" =~ [0-9]+ ]]
+                then
+                    info "$arg: $node: $vm"
+                    sync_vm "$vm"
+                fi
+            fi
+        done <<< "$(/bin/find /etc/pve/$node/ -name '[0-9]*.conf')"
+    done
 }
 
 #
@@ -524,6 +568,8 @@ sync_vms()
 #
 sync_vm()
 {
+    local ev="0"
+
     if [ $# -lt 1 ]
     then
         err "Usage: sync_vm <vm id>"
@@ -548,8 +594,8 @@ sync_vm()
                     info "to_storage    = $to_storage"
                     info "to_pool       = $to_pool"
                     info "to            = $to"
-                    info "opt_move      = $opt_force"
-                    info "opt_force     = $opt_move"
+                    info "opt_force     = $opt_force"
+                    info "opt_move      = $opt_move"
                     if [ -n "${vm_node[$vm]}" ]
                     then
                         info "--- node stuff ---"
@@ -565,19 +611,20 @@ sync_vm()
                         for disk in "${vm_storage_list[@]}"
                         do
                             info \
-                                sync1 $vm $disk \
+                                sync $vm $disk \
                                 from ${vm_node[$vm]}:${vm_storage_from[$disk]} \
                                 to $to_node:${vm_storage_to[$disk]} 
                             sync_storage "$disk" "${vm_node[$vm]}" "${vm_storage_from[$disk]}/$disk" "$to_node" "$to_pool/$disk"
-                            if [ $? != 0 ]
+                            if [ "$?" != 0 ]
                             then
-                                err "disk sync ${vm_node[$vm]}:${vm_storage_from[$disk]} failed"
-                                vm_sync_status[$vm]="fail"
+                                ev="$?"
+                                error_list[$vm]="vm sync failed"
                             fi
                         done
                     else
                         vm_sync_status[$vm]="location of vm $vm not found, skipping."
                         err "${vm_sync_status[$vm]}"
+                        ev="1"
                     fi
                 fi
                 ;;
@@ -605,18 +652,13 @@ sync_vm()
                         from ${vm_node[$vm]}:${cluster_pool["$pool"]} \
                         to $to_node:${vm_storage_to["$disk"]} 
                     sync_storage "$disk" "${vm_node[$vm]}" "${vm_storage_from[$disk]}/$disk" "$to_node" "${vm_storage_to["$disk"]}/$disk"
-                    #sync_storage "$disk" "${vm_node[$vm]}" "${cluster_pool["$pool"]}/$disk" "$to_node" "$to_pool/$disk"
-                    if [ $? != 0 ]
-                    then
-                        vm_sync_status["$vm"]="failed."
-                        vm_sync_status["${vm}-${name}"]="failed: $from/$name"
-                        err "sync ${vm_node[$vm]}:${cluster_pool["$pool"]} -> $to_node:$to_pool"
-                    fi
                 fi
                 ;;
         esac
     fi
     info
+
+    return "$ev"
 }
 
 #
@@ -644,12 +686,17 @@ get_node_address()
 sync_storage()
 {
     local disk="$1"
-    shift
     local from_n
     local from_storage
     local to_n
     local to_storage
     local ev="0"
+
+    # globals used
+    #
+    # $vm
+    # $to_none 
+    #
 
     from_n="$(get_node_address "${vm_node[$vm]}")"
     [ $? == 0 ] || ev="$?"
@@ -674,134 +721,52 @@ sync_storage()
 
     elif [ -n "$from_n" -a -n "$to_n" ]
     then
-        err "Both $from_n and $to_n are remote. One has to be local."
-        vm_sync_status["$disk"]="failed"
+        status="Both $from_n and $to_n are remote. One has to be local."
+        err "$status"
+        vm_sync_status["$disk"]="$status"
         ev="1"
     else
-        if [ "$opt_dry_run" == "1" ]
+        echo "$syncoid" $opt_force "${opts[@]}" --recursive "$from_n$from_storage" "$to_n$to_storage"
+
+        if [ "$opt_dry_run" != "1" ]
         then
-            echo "$syncoid" $do_force "${opts[@]}" --recursive "$from_n$from_storage" "$to_n$to_storage"
-        else
-            "$syncoid" $do_force "${opts[@]}" --recursive "$from_n$from_storage" "$to_n$to_storage"
+            # REF: https://unix.stackexchange.com/questions/474177/how-to-redirect-stderr-in-a-variable-but-keep-stdout-in-the-console
+            {
+                status=$("$syncoid" $opt_force "${opts[@]}" --recursive "$from_n$from_storage" "$to_n$to_storage" 3>&2 2>&1 1>&3;)
+                ev="$?"
+            } 2>&1
+            [ -n "$status" ] && echo "e $err" > /dev/stderr
         fi
-        ev="$?"
 
         if [ "$ev" == 0 ]
         then
             vm_sync_status["$disk"]="ok"
         else
             vm_sync_status["$disk"]="failed"
-            err "sync of disk $disk to $to_n$to_storage failed."
+            error_list["$vm-$disk"]="$status"
+            err "$disk: $status"
         fi
     fi
 
     return "$ev"
 }
 
-sync_vmx()
+print_results()
 {
-    local vm_conf=""
-    declare -A vm_list
-    do_force=""
-    do_move=""
-
-    for vm in "$@"
-    do
-        vm_list["$vm"]="ok"
-
-        if [ -e "/etc/pve/local/qemu-server/${vm}.conf" -o -e /etc/pve/local/lxc/${vm}.conf ]
-        then
-            echo "vm = $vm - processing"
-            for v in "/dev/$from/vm-$vm-"* "/$from/subvol-$vm-"*
-            do
-                if [ -e "$v" ]
-                then
-                    name="$(/bin/basename "$v")"
-                    case "$name" in
-                        *"-part"*) ;;
-                        *)
-                            case "$v" in
-                                "/dev/"*)
-                                    echo "  processing dev disk $name"
-                                    echo "  /usr/sbin/syncoid ${opts[@]} --recursive" "$from/$name" "$to/$name"
-                                    /usr/sbin/syncoid $do_force "${opts[@]}" --recursive "$from/$name" "$to/$name"
-                                    if [ $? != 0 ]
-                                    then
-                                        vm_list["$vm"]="failed."
-                                        vm_list["${vm}-${name}"]="failed: $from/$name"
-                                    fi
-                                    ;;
-                                *)
-                                    echo "  processing vol disk $name"
-                                    echo "  /usr/sbin/syncoid ${opts[@]} --recursive" "$from/$name" "$to/$name"
-                                    /usr/sbin/syncoid $do_force "${opts[@]}" --recursive "$from/$name" "$to/$name"
-                                    if [ $? != 0 ]
-                                    then
-                                        vm_list["$vm"]="failed."
-                                        vm_list["${vm}-${name}"]="failed: $from/$name"
-                                    fi
-                                    ;;
-                            esac
-                    esac
-                fi
-            done
-            echo
-
-        elif [ "$vm" == move ]
-        then
-            do_move="true"
-            vm_list["$vm"]="true"
-        elif [ "$vm" == force ]
-        then
-            do_force="--force-delete"
-            vm_list["$vm"]="true"
-        else
-            echo "vm = $vm - not on this node, skipping."
-            echo 
-        fi
-    done
+    local sorted=()
+    local key
 
     echo
-    echo now issue the following commands if the VM disks were copied while the VM was off
-    echo and you want to move it. But will also need to update the storage location if it
-    echo has changed. a .bak file will be creted. Just delete it once you are happy
+    echo "##########"
+    echo "# Check the following for sync errors and address these"
+    echo "#"
     echo
 
-    for vm in "${!vm_list[@]}"
-    do
-        if [ "${vm_list["$vm"]}" == ok ]
-        then
-            if [ -e /etc/pve/local/qemu-server/${vm}.conf ]
-            then
-                echo /bin/mv /etc/pve/local/qemu-server/${vm}.conf /etc/pve/nodes/${to_node}/qemu-server/${vm}.conf
-                echo /usr/bin/perl -i.bak -p -e "s/$from_storage:/$to_storage:/g" /etc/pve/nodes/${to_node}/qemu-server/${vm}.conf
-                echo /bin/rm /etc/pve/nodes/${to_node}/qemu-server/${vm}.conf.bak
-                if [ "$do_move" == true ]
-                then
-                    /bin/mv /etc/pve/local/qemu-server/${vm}.conf /etc/pve/nodes/${to_node}/qemu-server/${vm}.conf
-                    ev="$?"
-                    /usr/bin/perl -i.bak -p -e "s/$from_storage:/$to_storage:/g" /etc/pve/nodes/${to_node}/qemu-server/${vm}.conf
-                    ev+="$?"
-                    echo "move: completed: ev=$ev"
-                fi
+    mapfile -d '' sorted < <(/bin/printf '%s\0' "${!error_list[@]}" | /bin/sort -zn)
 
-            elif [ -e /etc/pve/local/lxc/${vm}.conf ]
-            then
-                echo /bin/mv /etc/pve/local/lxc/${vm}.conf /etc/pve/nodes/${to_node}/lxc/${vm}.conf
-                echo /usr/bin/perl -i.bak -p -e "s/$from_storage:/$to_storage:/g" /etc/pve/nodes/${to_node}/lxc/${vm}.conf
-                echo /bin/rm /etc/pve/nodes/${to_node}/lxc/${vm}.conf.bak
-                if [ "$do_move" == true ]
-                then
-                    /bin/mv /etc/pve/local/lxc/${vm}.conf /etc/pve/nodes/${to_node}/lxc/${vm}.conf
-                    ev="$?"
-                    /usr/bin/perl -i.bak -p -e "s/$from_storage:/$to_storage:/g" /etc/pve/nodes/${to_node}/lxc/${vm}.conf
-                    ev+="$?"
-                    echo "move: completed: ev=$ev"
-                fi
-            fi
-        else
-            echo "$vm = ${vm_list["$vm"]}"
-        fi
+    for key in "${sorted[@]}"
+    do
+        [ -n "$key" ] && echo "$key - ${error_list[$key]}"
         echo
     done
 }
