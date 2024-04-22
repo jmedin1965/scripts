@@ -4,6 +4,7 @@ host="admin@mgt-host04.gli.lan"
 host="admin@mgt-host04.jmsh-home.com"
 host="admin@10.10.1.33"
 #host="admin@mgt-host04.gli.lane"
+
 ssh_opts=(
         "-oKexAlgorithms=+diffie-hellman-group1-sha1" 
         "-oConnectTimeout=5"

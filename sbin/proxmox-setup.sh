@@ -1,6 +1,6 @@
 #!/bin/bash
 
-proxmox_packages="tmux htop iotop nload bmon ifupdown2 ethtool liblz4-tool sysstat"
+proxmox_packages="tmux htop iotop nload bmon ifupdown2 ethtool liblz4-tool sysstat command-not-found csync2"
 proxmox_gateway_pachages="ifupdown2 ethtool"
 extra_packages="vim ethtool"
 
@@ -173,6 +173,7 @@ main()
         echo
 
         apt install -y $proxmox_packages
+        /sbin/update-command-not-found
 
         info checking nested virtualisation
         # REF https://forum.proxmox.com/threads/nested-virtualization.25996/
