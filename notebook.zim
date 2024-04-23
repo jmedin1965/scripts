@@ -2,7 +2,7 @@
 version=0.4
 name=scripts
 interwiki=
-home=readme
+home=README
 icon=
 document_root=
 short_links=False
