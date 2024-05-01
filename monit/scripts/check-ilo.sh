@@ -23,6 +23,18 @@ main()
     local scale
     local warn="no"
 
+    local opt
+    local opt_cron=""
+
+    local info=""
+
+    for opt in "$@"
+    do
+        case "$opt" in
+            cron)   opt_cron="$opt";;
+        esac
+    done
+
     get_values
 
     echo
@@ -34,8 +46,17 @@ main()
         then
             scale="$(set -- $val; echo $2)"
             val="$(set -- $val; echo $1)"
-            echo "${ilo_data[/system1/fan$fan/DeviceID]}: ${ilo_data[/system1/fan$fan/OperationalStatus]}: $val $scale"
-            [ "$val" -ge "$fan_warn" ] && warn="yes"
+            info="${ilo_data[/system1/fan$fan/DeviceID]}: ${ilo_data[/system1/fan$fan/OperationalStatus]}: $val $scale"
+            if [ "$val" -ge "$fan_warn" ]
+            then
+                warn="yes"
+                echo "$info"
+            else
+                if [ -z "$opt_cron" ]
+                then
+                    echo "$info"
+                fi
+            fi
         fi
     done
 
