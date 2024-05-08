@@ -1,0 +1,58 @@
+#!/bin/bash
+
+main()
+{
+    log_f="/tmp/sanoid_hook.log"
+
+    info "start sanoid-hook"
+    info "SANOID_SCRIPT   = $SANOID_SCRIPT"
+    info "SANOID_TARGET   = $SANOID_TARGET"
+    info "SANOID_TARGETS  = $SANOID_TARGETS"
+    info "SANOID_SNAPNAME = $SANOID_SNAPNAME"
+    info "SANOID_SNAPNAMES= $SANOID_SNAPNAMES"
+    info "SANOID_TYPES    = $SANOID_TYPES"
+    info "pwd             = $PWD"
+
+    local dir="$(/bin/dirname "$0")"
+    local target="$(/bin/basename "$SANOID_TARGETS")"
+
+    case "$SANOID_SCRIPT" in
+        post)
+            if [ "$target" == data -a -x "$dir/sanoid-hook-proxmox" ]
+            then
+                info "start sanoid-hook-proxmox"
+                /bin/nohup "$dir/sanoid-hook-proxmox" 2>&1 > "$log_f" &
+            fi
+            ;;
+    esac
+
+    info "done sanoid-hook"
+}
+
+msg()
+{
+    local date
+
+    if [ $# -lt 2 ]
+    then
+        echo
+        echo >> "$log_f"
+    else
+        date="$(/bin/date)"
+        echo "$date:" "$@"
+        echo "$date:" "$@" >> "$log_f"
+    fi
+}
+
+info()
+{
+    msg "Info:" "$@"
+}
+
+err()
+{
+    msg "Error:" "$@"
+}
+
+main "$@"
+
