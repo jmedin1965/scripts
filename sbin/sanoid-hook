@@ -12,6 +12,9 @@ main()
     info "SANOID_SNAPNAMES= $SANOID_SNAPNAMES"
     info "SANOID_TYPES    = $SANOID_TYPES"
     info "pwd             = $PWD"
+    info "args            = $@"
+
+    exit 0
 
     local dir="$(/bin/dirname "$0")"
     local target="$(/bin/basename "$SANOID_TARGETS")"
