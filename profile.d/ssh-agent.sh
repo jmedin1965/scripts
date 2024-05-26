@@ -15,27 +15,19 @@ fi
 if [ -n "$SSH_AUTH_SOCK" ]
 then
     echo "msg: SSH_AUTH_SOCK was set to: $SSH_AUTH_SOCK"
-    # if SSH_AUTH_SOCK is not pointing to the local one then
-    if [ "$SSH_AUTH_SOCK" != "$AUTH_SOCK" ]
+    if [ "$SSH_AUTH_SOCK" != "$AUTH_SOCK" ] # if SSH_AUTH_SOCK is not pointing to the local one then
     then
         echo "msg: SSH_AUTH_SOCK:$SSH_AUTH_SOCK != AUTH_SOCK:$AUTH_SOCK"
-        # check if local is active, if it is not, use the one passed
-        # if it is active, then keep using it
-        AUTH_SOCK_ORIG="$SSH_AUTH_SOCK"     # Save the original socket
-        export SSH_AUTH_SOCK="$AUTH_SOCK"   # change to use local socket
+        # check if the one passed is active, if it is, use this one
         ssh-add -l 2>/dev/null >/dev/null   # test if local socket is active
-        if [ $? -ge 2 -o -h "$SSH_AUTH_SOCK" ] # is not active or is a symlink then update it
+        if [ $? -ge 2 ] # if not active
         then
-            if [ -h "$SSH_AUTH_SOCK" ]
-            then
-                echo "msg: $SSH_AUTH_SOCK is a link, updating symlink"
-            else
-                echo "msg: $SSH_AGENT is not active, updating symlink"
-            fi
-            echo "msg: $SSH_AUTH_SOCK -> $AUTH_SOCK_ORIG"
-            ln -sf "$AUTH_SOCK_ORIG" "$SSH_AUTH_SOCK"
+            echo "msg: $SSH_AUTH_SOCK is not active, use $AUTH_SOCK instead."
+            export SSH_AUTH_SOCK="$AUTH_SOCK"
         else
-            echo "msg: EV=$?: $SSH_AUTH_SOCK is ok, not updating"
+            echo "msg: $SSH_AUTH_SOCK is active, use it."
+            echo ln -sf "$SSH_AUTH_SOCK" "$AUTH_SOCK"
+            ln -sf "$SSH_AUTH_SOCK" "$AUTH_SOCK"
         fi
     fi
 else
