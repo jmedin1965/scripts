@@ -26,7 +26,12 @@ then
         ssh-add -l 2>/dev/null >/dev/null   # test if local socket is active
         if [ $? -ge 2 -o -h "$SSH_AUTH_SOCK" ] # is not active or is a symlink then update it
         then
-            echo "msg: $SSH_AGENT not active or is a link, updating symlink"
+            if [ -h "$SSH_AUTH_SOCK" ]
+            then
+                echo "msg: $SSH_AUTH_SOCK is a link, updating symlink"
+            else
+                echo "msg: $SSH_AGENT is not active, updating symlink"
+            fi
             echo "msg: $SSH_AUTH_SOCK -> $AUTH_SOCK_ORIG"
             ln -sf "$AUTH_SOCK_ORIG" "$SSH_AUTH_SOCK"
         else
