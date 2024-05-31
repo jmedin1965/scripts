@@ -104,8 +104,12 @@ unset AUTH_SOCK_LINK
 unset UTH_SOCK_D
 unset SSH_AGENT
 
-if [ -e "/etc/profile.d/ssh-agent.sh" -a "$(/bin/fgrep -c "/bin/bash /etc/profile.d/ssh-agent.sh logout" ~/.bash_logout)" == 0 ]
+if [ -e "/etc/profile.d/ssh-agent.sh" ]
 then
-    echo "/bin/bash /etc/profile.d/ssh-agent.sh logout" >> ~/.bash_logout
+    if [ ! -e ~/.bash_logout ] || [ "$(/bin/fgrep -c "/bin/bash /etc/profile.d/ssh-agent.sh logout" ~/.bash_logout)" == 0 ]
+    then
+        echo "/bin/bash /etc/profile.d/ssh-agent.sh logout" >> ~/.bash_logout
+        /bin/chmod 0600 ~/.bash_logout
+    fi
 fi
 
