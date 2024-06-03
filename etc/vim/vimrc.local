@@ -59,3 +59,7 @@ set ai
 set ic
 syntax on
 
+" vim starts in replace mode
+" REF: https://superuser.com/questions/1284561/why-is-vim-starting-in-replace-mode
+set t_u7=
+

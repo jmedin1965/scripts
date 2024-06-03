@@ -75,7 +75,8 @@ get_pinentry()
 {
     info "looking for pinentry program"
 
-    if "$xhost" > /dev/null 2>&1
+    #if "$xhost" > /dev/null 2>&1
+    if [ -n "$DISPLAY" ]
     then
         info "checking x version of pinentry"
         [ -x "/usr/bin/pinentry-x11" ]   && echo "/usr/bin/pinentry-x11"   && return

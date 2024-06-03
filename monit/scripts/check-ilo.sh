@@ -1,9 +1,8 @@
 #!/bin/bash
 
-host="admin@mgt-host04.gli.lan"
-host="admin@mgt-host04.jmsh-home.com"
 host="admin@10.10.1.33"
-#host="admin@mgt-host04.gli.lane"
+host="admin@192.168.10.33"
+
 ssh_opts=(
         "-oKexAlgorithms=+diffie-hellman-group1-sha1" 
         "-oConnectTimeout=5"
@@ -22,6 +21,18 @@ main()
     local scale
     local warn="no"
 
+    local opt
+    local opt_cron=""
+
+    local info=""
+
+    for opt in "$@"
+    do
+        case "$opt" in
+            cron)   opt_cron="$opt";;
+        esac
+    done
+
     get_values
 
     echo
@@ -33,8 +44,17 @@ main()
         then
             scale="$(set -- $val; echo $2)"
             val="$(set -- $val; echo $1)"
-            echo "${ilo_data[/system1/fan$fan/DeviceID]}: ${ilo_data[/system1/fan$fan/OperationalStatus]}: $val $scale"
-            [ "$val" -ge "$fan_warn" ] && warn="yes"
+            info="${ilo_data[/system1/fan$fan/DeviceID]}: ${ilo_data[/system1/fan$fan/OperationalStatus]}: $val $scale"
+            if [ "$val" -ge "$fan_warn" ]
+            then
+                warn="yes"
+                echo "$info"
+            else
+                if [ -z "$opt_cron" ]
+                then
+                    echo "$info"
+                fi
+            fi
         fi
     done
 

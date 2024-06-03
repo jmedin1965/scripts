@@ -1,10 +1,54 @@
 #!/bin/bash
 
-proxmox_packages="tmux htop iotop nload bmon ifupdown2 ethtool liblz4-tool sysstat"
+proxmox_packages="tmux htop iotop nload bmon ifupdown2 ethtool liblz4-tool sysstat command-not-found csync2"
 proxmox_gateway_pachages="ifupdown2 ethtool"
 extra_packages="vim ethtool"
 
 main()
+{
+    local EV="0"
+
+    if [ $# != 0 ]
+    then
+        while [ $# != 0 ]
+        do
+            case "$1" in
+                monit) # use MONIT format for info messages
+                    ISTTY="MONIT"
+                    ;;
+                daily)
+                    removeSubscriptionMessage
+                    ;;
+                rc-local)
+                    install_rc_local
+                    ;;
+                subscription)
+                    removeSubscriptionMessage
+                    EV="$?"
+                    ;;
+                *)
+                    (
+                      echo "$(/usr/bin/basename "$0"): unrecognized option \"$1\""
+                      echo "Options:"
+                      echo "  daily        - do daily tasks only"
+                      echo "  rc-local     - install rc-local scripts"
+                      echo "  subscription - check and remove subscription message"
+                      echo "  monit - use MONIT format for info messages"
+                    ) > /dev/stderr
+                    exit 1
+                    ;;
+            esac
+            shift
+        done
+    else
+        do_all
+        EV="$?"
+    fi
+
+    exit "$EV"
+}
+
+do_all()
 {
     info "remove subscription apt repos"
     rm -f /etc/apt/sources.list.d/pmg-enterprise.list
@@ -146,15 +190,6 @@ main()
 	fi
     echo
 
-    info fix the mouse feature annoyance in vim
-	mkdir -p /etc/vim
-	vimrc > /etc/vim/vimrc.local 
-
-    info "add ll alias and uncomment LS_OPTIONS and eval"
-    sed -i -e 's/# export LS_OPTIONS/export LS_OPTIONS/g' ~/.bashrc
-    sed -i -e 's/# eval/eval/g' ~/.bashrc
-    sed -i -e 's/# alias ll/alias ll/g' ~/.bashrc
-
     # Proxmox Mail Gateway
     if [ -e /usr/bin/pmgversion ]
     then
@@ -173,6 +208,7 @@ main()
         echo
 
         apt install -y $proxmox_packages
+        /sbin/update-command-not-found
 
         info checking nested virtualisation
         # REF https://forum.proxmox.com/threads/nested-virtualization.25996/
@@ -232,48 +268,83 @@ vfio_virqfd
         echo
     fi
 
-    ## add monit from backports
-    ##
-    ## REF: https://backports.debian.org/Instructions/
-    ##
-	#if [ "$ID" == debian ]
-	#then
-    #	info "adding debian backports for $codename"
-    #	echo "deb http://deb.debian.org/debian ${codename}-backports main" > /etc/apt/sources.list.d/backports.list
-    #	info "installing monit from backports"
-    #	apt update
-    #	apt -t ${codename}-backports install monit
-    #	echo
-	#fi
-    # No need as Monit is now in stardart source
-
-    #echo dist-upgrade
-    #apt dist-upgrade -y
-
-
-    #
-    # Remove subscription message
-    #
-    # This has changed again
-    # REF: https://johnscs.com/remove-proxmox51-subscription-notice/
-    #
-    if [ -e /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js ]
-    then
-        log "INFO: check and fix subscription message"
-        sed -Ezi.bak "s/(Ext.Msg.show\(\{\s+title: gettext\('No valid sub)/void\(\{ \/\/\1/g" /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && systemctl restart pveproxy.service
-    fi
-
+    removeSubscriptionMessage
+    install_rc_local
 }
 
+install_rc_local()
+{
+    if [ ! -e /etc/systemd/system/rc-local.service ]
+    then
+        cp /usr/local/scripts/etc/systemd/system/rc-local.service /etc/systemd/system/rc-local.service
+    fi
+
+    if [ ! -e /etc/rc.local ]
+    then
+        cp /usr/local/scripts/etc/rc.local /etc/rc.local
+        chmod +x /etc/rc.local
+        systemctl enable rc-local
+    fi
+
+    if [ ! -e /etc/logrotate.d/rc.local ]
+    then
+        cp /usr/local/scripts/etc/logrotate.d/rc.local /etc/logrotate.d/rc.local
+    fi
+
+    [ ! -d /etc/rc.local.d ] && mkdir /etc/rc.local.d
+}
+
+#
+# Remove subscription message
+#
+# This has changed again
+# REF: https://johnscs.com/remove-proxmox51-subscription-notice/
+#
+removeSubscriptionMessage()
+{
+    if [ -e /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js ]
+    then
+        info "check and fix subscription message."
+        if dpkg -V proxmox-widget-toolkit | grep -q '/proxmoxlib\.js$'
+        then
+            info "/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js: file is changed, fixing not needed."
+        else
+            info "/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js: file needs fixing."
+            sed -Ezi.bak \
+                "s/(Ext.Msg.show\(\{\s+title: gettext\('No valid sub)/void\(\{ \/\/\1/g" \
+                /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js && \
+                systemctl restart pveproxy.service
+            /bin/true
+        fi
+    fi
+
+    if [ ! -e /etc/apt/apt.conf.d/99no-nag-script.conf ]
+    then
+        info "Installing 99no-nag-script.conf as a DPkg::Post-Invoke script"
+        echo "DPkg::Post-Invoke { \"$0 subscription\"; };" > /etc/apt/apt.conf.d/99no-nag-script.conf
+    fi
+}
+
+ISTTY="$(/usr/bin/tty -s && echo TRUE)"
 log()
 {
-	local date="$(/bin/date +%d'-'%m'-'%y' '%H':'%M':'%S)" 
-	echo "${date}:" "$@"
+    if [ "$ISTTY" == "MONIT" ]
+    then
+        echo "$@"
+    else
+	    local date="$(/bin/date +%d'-'%m'-'%y' '%H':'%M':'%S)" 
+	    echo "${date}:" "$@"
+    fi
 }
 
 info()
 {
-	log "INFO:" "$@"
+	[ "$ISTTY" == "TRUE" -o "$ISTTY" == "MONIT" ] && log "INFO:" "$@"
+}
+
+monit()
+{
+    echo "INFO:" "$@"
 }
 
 warning()
@@ -283,64 +354,7 @@ warning()
 
 error()
 {
-	log "ERROR:" "$@"
-}
-
-vimrc()
-{
-    mkdir -p ~/.vim/undodir
-    touch /root/.vimrc
-    cat <<-END
-	" Uncomment the next line to make Vim more Vi-compatible
-	" NOTE: debian.vim sets 'nocompatible'.  Setting 'compatible' changes numerous
-	" options, so any other options should be set AFTER setting 'compatible'.
-	"set compatible
-
-	" Vim5 and later versions support syntax highlighting. Uncommenting the next
-	" line enables syntax highlighting by default.
-	if has("syntax")
-	  syntax on
-	endif
-
-	" If using a dark background within the editing area and syntax highlighting
-	" turn on this option as well
-	set background=dark
-
-	" Uncomment the following to have Vim jump to the last position when
-	" reopening a file
-	if has("autocmd")
-	  au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif
-	endif
-
-	" Uncomment the following to have Vim load indentation rules and plugins
-	" according to the detected filetype.
-	if has("autocmd")
-	  filetype plugin indent on
-	endif
-
-	" The following are commented out as they cause vim to behave a lot
-	" differently from regular Vi. They are highly recommended though.
-	"set showcmd        " Show (partial) command in status line.
-	"set showmatch      " Show matching brackets.
-	"set ignorecase     " Do case insensitive matching
-	"set smartcase      " Do smart case matching
-	"set incsearch      " Incremental search
-	"set autowrite      " Automatically save before commands like :next and :make
-	"set hidden         " Hide buffers when they are abandoned
-	"set mouse=a        " Enable mouse usage (all modes)
-
-	autocmd Filetype * setlocal tabstop=4 shiftwidth=4 softtabstop=4 expandtab
-
-	" Greg vim fixes TM
-	set mouse-=a
-	au BufReadPost * if line("\") > 1 && line(\"") <= line("$") | exe "normal! g\\\`\"" | endif
-	set undodir=~/.vim/undodir
-	set undofile
-	set ai
-	set ic
-	syntax on
-
-END
+	log "ERROR:" "$@" > /dev/stderr
 }
 
 main "$@"
