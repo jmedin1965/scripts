@@ -11,7 +11,7 @@ if [ -z "$host" -o -z "$user" ]
 then
     echo "Usage: $(/usr/bin/basename "$0") <host> <user>
 
-    Change proxmox user password to a random password and returns th enew password.
+    Change proxmox user password to a random password and returns the new password.
     Also sets user expiry to 1 day
 
 Where:
@@ -25,7 +25,7 @@ $password" | /usr/bin/ssh "$host" /usr/sbin/pveum passwd "$user" 2> /dev/null
     if [ $? == 0 ]
     then
         echo "$password"
-        seconds="$(( $(/usr/bin/date "+%s") + 60 ))"
+        seconds="$(( $(/bin/date "+%s") + 60 ))"
         /usr/bin/ssh "$host" /usr/sbin/pveum user modify "$user" -expire $seconds 2> /dev/null
     else
         echo ""
