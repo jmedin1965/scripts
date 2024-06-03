@@ -11,7 +11,7 @@ then
     cd "${git_repo_local}"
     R="`bash -c 'echo $RANDOM'`"
     tty -s && R="0"
-    tty --quiet || sleep `expr $R % 240`
+    tty -s || sleep `expr $R % 240`
     git pull  > /dev/null
 else
     git clone "$git_repo" "$git_repo_local"
