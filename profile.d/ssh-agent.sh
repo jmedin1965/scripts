@@ -43,7 +43,7 @@ fi
 export SSH_AUTH_SOCK_ORIG=""
 
 # Cygwin ssh-agent socket
-if [ "$(/bin/uname -o)" == "Cygwin" ]
+if [ "$(/usr/bin/uname -o)" == "Cygwin" ]
 then
     AUTH_SOCK=~/.ssh/ssh-agent-pageant.sock
     SSH_AGENT="/usr/bin/ssh-pageant"
