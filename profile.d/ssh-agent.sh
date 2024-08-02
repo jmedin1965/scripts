@@ -4,6 +4,25 @@ AUTH_SOCK_LINK=~/.ssh/ssh-agent-link.sock
 AUTH_SOCK_D=~/.ssh/ssh-agent.sock.d
 SSH_AGENT="ssh-agent"
 
+run_cmd()
+{
+    local c=""
+
+    if [ -x "/bin/$1" ]
+    then
+        c="/bin/$1"
+
+    elseif [ -x "/usr/bin/$1" ]
+    then
+        c="/usr/bin/$1"
+    else
+        return 1
+    fi
+
+    shift
+    "$c" "$@"
+}
+
 if [ "$1" == logout ]
 then
 	echo "Loggout: SSH_AUTH_SOCK_ORIG=$SSH_AUTH_SOCK_ORIG"
@@ -43,7 +62,7 @@ fi
 export SSH_AUTH_SOCK_ORIG=""
 
 # Cygwin ssh-agent socket
-if [ "$(/usr/bin/uname -o)" == "Cygwin" ]
+if [ "`run_cmd uname -o`" == "Cygwin" ]
 then
     AUTH_SOCK=~/.ssh/ssh-agent-pageant.sock
     SSH_AGENT="/usr/bin/ssh-pageant"
@@ -67,7 +86,7 @@ then
         else
             echo "msg: $SSH_AUTH_SOCK is active, use it."
 
-            SSH_AUTH_SOCK_ORIG="$AUTH_SOCK_D/`/bin/basename "$SSH_AUTH_SOCK"`"
+            SSH_AUTH_SOCK_ORIG="$AUTH_SOCK_D/`run_cmd basename "$SSH_AUTH_SOCK"`"
             echo ln -sf "$SSH_AUTH_SOCK" "$SSH_AUTH_SOCK_ORIG"
             ln -sf "$SSH_AUTH_SOCK" "$SSH_AUTH_SOCK_ORIG"
 
