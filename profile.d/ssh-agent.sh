@@ -46,6 +46,7 @@ then
                         /bin/rm -f "$SSH_AUTH_SOCK_ORIG"
                     else
                         echo " loop: ln -sf \"$SSH_AUTH_SOCK_ORIG\" \"$AUTH_SOCK_LINK\""
+                        [ -e "$AUTH_SOCK_LINK" ] && /bin/rm -f "$AUTH_SOCK_LINK"
                         /bin/ln -sf "$SSH_AUTH_SOCK_ORIG" "$AUTH_SOCK_LINK"
                     fi
                 fi
@@ -88,9 +89,11 @@ then
 
             SSH_AUTH_SOCK_ORIG="$AUTH_SOCK_D/`run_cmd basename "$SSH_AUTH_SOCK"`"
             echo ln -sf "$SSH_AUTH_SOCK" "$SSH_AUTH_SOCK_ORIG"
+            [ -e "$SSH_AUTH_SOCK_ORIG" ] && /bin/rm -f "$SSH_AUTH_SOCK_ORIG"
             ln -sf "$SSH_AUTH_SOCK" "$SSH_AUTH_SOCK_ORIG"
 
             echo ln -sf "$SSH_AUTH_SOCK_ORIG" "$AUTH_SOCK_LINK"
+            [ -e "$AUTH_SOCK_LINK" ] && /bin/rm -f "$AUTH_SOCK_LINK"
             ln -sf "$SSH_AUTH_SOCK_ORIG" "$AUTH_SOCK_LINK"
             
             export SSH_AUTH_SOCK="$AUTH_SOCK_LINK"
