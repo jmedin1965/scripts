@@ -34,7 +34,7 @@ main()
 
         info "bw command = $command"
 
-        # if all we want is to lock the vault, the just do it. Don't unlock first
+        # if all we want is to lock the vault, then just do it. Don't unlock first
         if [ "$command" == lock -o "$command" == logout ]
         then
             "$bw" "$@"
@@ -59,6 +59,13 @@ main()
 do_init()
 {
     info "do init stuff"
+    #
+    # Lets just force set PATH to what we want, then we can use which to find these
+    # We exclude /usr/local/scripts/bin since the original bw client should be there
+    #
+    export SHELL="/bin/sh"
+    export PATH="/usr/local/scripts/bin:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
+
     [ -x "$pinentry" ] || err "Unable for find pinentry program"
     [ -x "$xhost" ] || err "Unable for find xhost program"
     info "xhost = $xhost"

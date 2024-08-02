@@ -1,8 +1,8 @@
 
-AUTH_SOCK=~/.ssh/ssh-agent.sock
-AUTH_SOCK_LINK=~/.ssh/ssh-agent-link.sock
-AUTH_SOCK_D=~/.ssh/ssh-agent.sock.d
-SSH_AGENT="ssh-agent"
+export AUTH_SOCK=~/.ssh/ssh-agent.sock
+export AUTH_SOCK_LINK=~/.ssh/ssh-agent-link.sock
+export AUTH_SOCK_D=~/.ssh/ssh-agent.sock.d
+export SSH_AGENT="ssh-agent"
 
 run_cmd()
 {
@@ -31,7 +31,7 @@ then
 		echo "remove SSH_AUTH_SOCK that this session was using $SSH_AUTH_SOCK_ORIG"
 		echo /bin/rm -f "$SSH_AUTH_SOCK_ORIG"
         SSH_AUTH_SOCK=""
-        for SSH_AUTH_SOCK_ORIG in $(/bin/ls -c --reverse "$AUTH_SOCK_D"/*)
+        for SSH_AUTH_SOCK_ORIG in `/bin/ls -c --reverse "$AUTH_SOCK_D"/*`
 		do
 			if [ -S "$SSH_AUTH_SOCK_ORIG" ]
 			then
@@ -103,6 +103,50 @@ then
             export SSH_AUTH_SOCK_ORIG
         fi
     fi
+
+elif [ -n "$SUDO_USER" ] # if we sudo'd, try to use old users socket
+then
+    SUDO_USER_HOME="`/usr/bin/getent passwd $SUDO_USER | /usr/bin/cut -f 6 -d:`"
+    SUDO_AUTH_SOCK=`echo $AUTH_SOCK | /usr/bin/sed "s,^$HOME,$SUDO_USER_HOME,g"`
+    SUDO_AUTH_SOCK_LINK=`echo $AUTH_SOCK_LINK | /usr/bin/sed "s,^$HOME,$SUDO_USER_HOME,g"`
+
+    if [ -e "$SUDO_AUTH_SOCK" ]
+    then
+        export SSH_AUTH_SOCK="$SUDO_AUTH_SOCK"
+        echo "msg: checking if socket for user $SUDO_USER is active"
+        ssh-add -l 2>/dev/null >/dev/null
+        if [ $? -ge 2 ]
+        then
+            echo "msg: no, $SSH_AUTH_SOCK is not active"
+            unset SSH_AUTH_SOCK
+        else
+            echo "msg: yes, $SSH_AUTH_SOCK is active"
+        fi
+    fi
+    if [ -z "$AUTH_SOCK" ] && [ -e "$SUDO_AUTH_SOCK_LINK" ]
+    then
+        export SSH_AUTH_SOCK="$SUDO_AUTH_SOCK_LINK"
+        echo "msg: checking if socket for user $SUDO_USER is active"
+        ssh-add -l 2>/dev/null >/dev/null
+        if [ $? -ge 2 ]
+        then
+            echo "msg: no, $SSH_AUTH_SOCK is not active"
+            unset SSH_AUTH_SOCK
+        else
+            echo "msg: yes, $SSH_AUTH_SOCK is active"
+        fi
+    fi
+
+    echo
+    echo "msg: using SSH_AUTH_SOCK from user $SUDO_USER"
+    echo SSH_AUTH_SOCK=$SSH_AUTH_SOCK
+    echo SSH_AUTH_SOCK_ORIG=$SSH_AUTH_SOCK_ORIG
+    echo SUDO_USER=$SUDO_USER
+    echo SUDO_USER_HOME=$SUDO_USER_HOME
+    echo SUDO_AUTH_SOCK=$SUDO_AUTH_SOCK
+    echo SUDO_AUTH_SOCK_LINK=$SUDO_AUTH_SOCK_LINK
+    echo
+    
 else
     export SSH_AUTH_SOCK="$AUTH_SOCK"   # change to use local socket
     echo "msg: SSH_AUTH_SOCK not set, setting to: $SSH_AUTH_SOCK"
