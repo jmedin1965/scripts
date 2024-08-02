@@ -12,7 +12,7 @@ run_cmd()
     then
         c="/bin/$1"
 
-    elseif [ -x "/usr/bin/$1" ]
+    elif [ -x "/usr/bin/$1" ]
     then
         c="/usr/bin/$1"
     else
