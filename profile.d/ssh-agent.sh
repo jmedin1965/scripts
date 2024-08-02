@@ -125,7 +125,7 @@ unset SSH_AGENT
 
 if [ -e "/etc/profile.d/ssh-agent.sh" ]
 then
-    if [ ! -e ~/.bash_logout ] || [ "$(/bin/fgrep -c "/bin/bash /etc/profile.d/ssh-agent.sh logout" ~/.bash_logout)" == 0 ]
+    if [ ! -e ~/.bash_logout ] || [ "`run_cmd fgrep -c "/bin/bash /etc/profile.d/ssh-agent.sh logout" ~/.bash_logout`" == 0 ]
     then
         echo "/bin/bash /etc/profile.d/ssh-agent.sh logout" >> ~/.bash_logout
         /bin/chmod 0600 ~/.bash_logout
