@@ -4,6 +4,7 @@ export AUTH_SOCK_LINK=~/.ssh/ssh-agent-link.sock
 export AUTH_SOCK_D=~/.ssh/ssh-agent.sock.d
 export SSH_AGENT="ssh-agent"
 
+# did this for FreeBSD/PFsense
 run_cmd()
 {
     local c=""
@@ -22,6 +23,14 @@ run_cmd()
     shift
     "$c" "$@"
 }
+
+# a function to trap CTRL_C since ssh-add times out or waits forever
+function ctrl_c() {
+    echo "** Trapped CTRL-C"
+    echo "msg: trap done"
+}
+# trap ctrl-c and call ctrl_c()
+trap ctrl_c INT
 
 if [ "$1" == logout ]
 then
