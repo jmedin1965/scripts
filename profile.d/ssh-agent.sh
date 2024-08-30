@@ -96,20 +96,26 @@ then
         else
             echo "msg: $SSH_AUTH_SOCK is active, use it."
 
-            SSH_AUTH_SOCK_ORIG="$AUTH_SOCK_D/`run_cmd basename "$SSH_AUTH_SOCK"`"
-            echo ln -sf "$SSH_AUTH_SOCK" "$SSH_AUTH_SOCK_ORIG"
-            [ -e "$SSH_AUTH_SOCK_ORIG" ] && /bin/rm -f "$SSH_AUTH_SOCK_ORIG"
-            ln -sf "$SSH_AUTH_SOCK" "$SSH_AUTH_SOCK_ORIG"
+            if [ "$SSH_AUTH_SOCK" == "$AUTH_SOCK_LINK" ]
+            then
+                echo "msg: SSH_AUTH_SOCK == AUTH_SOCK_LINK. We must be uning tmux so do nothing"
+                unset SSH_AUTH_SOCK_ORIG
+            else
+                SSH_AUTH_SOCK_ORIG="$AUTH_SOCK_D/`run_cmd basename "$SSH_AUTH_SOCK"`"
+                echo ln -sf "$SSH_AUTH_SOCK" "$SSH_AUTH_SOCK_ORIG"
+                [ -e "$SSH_AUTH_SOCK_ORIG" ] && /bin/rm -f "$SSH_AUTH_SOCK_ORIG"
+                ln -sf "$SSH_AUTH_SOCK" "$SSH_AUTH_SOCK_ORIG"
 
-            echo ln -sf "$SSH_AUTH_SOCK_ORIG" "$AUTH_SOCK_LINK"
-            [ -e "$AUTH_SOCK_LINK" ] && /bin/rm -f "$AUTH_SOCK_LINK"
-            ln -sf "$SSH_AUTH_SOCK_ORIG" "$AUTH_SOCK_LINK"
-            
-            export SSH_AUTH_SOCK="$AUTH_SOCK_LINK"
+                echo ln -sf "$SSH_AUTH_SOCK_ORIG" "$AUTH_SOCK_LINK"
+                [ -e "$AUTH_SOCK_LINK" ] && /bin/rm -f "$AUTH_SOCK_LINK"
+                ln -sf "$SSH_AUTH_SOCK_ORIG" "$AUTH_SOCK_LINK"
+                
+                export SSH_AUTH_SOCK="$AUTH_SOCK_LINK"
 
-            echo SSH_AUTH_SOCK=$SSH_AUTH_SOCK
-            echo SSH_AUTH_SOCK_ORIG=$SSH_AUTH_SOCK_ORIG
-            export SSH_AUTH_SOCK_ORIG
+                echo SSH_AUTH_SOCK=$SSH_AUTH_SOCK
+                echo SSH_AUTH_SOCK_ORIG=$SSH_AUTH_SOCK_ORIG
+                export SSH_AUTH_SOCK_ORIG
+            fi
         fi
     fi
 
@@ -132,7 +138,8 @@ then
             echo "msg: yes, $SSH_AUTH_SOCK is active"
         fi
     fi
-    if [ -z "$AUTH_SOCK" ] && [ -e "$SUDO_AUTH_SOCK_LINK" ]
+
+    if [ -e "$SUDO_AUTH_SOCK_LINK" ]
     then
         export SSH_AUTH_SOCK="$SUDO_AUTH_SOCK_LINK"
         echo "msg: checking if socket for user $SUDO_USER is active"
