@@ -25,7 +25,7 @@ run_cmd()
 }
 
 # a function to trap CTRL_C since ssh-add times out or waits forever
-function ctrl_c() {
+ctrl_c() {
     echo "** Trapped CTRL-C"
     echo "msg: trap done"
 }
