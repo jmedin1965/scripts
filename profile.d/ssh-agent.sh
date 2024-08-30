@@ -132,7 +132,8 @@ then
             echo "msg: yes, $SSH_AUTH_SOCK is active"
         fi
     fi
-    if [ -z "$AUTH_SOCK" ] && [ -e "$SUDO_AUTH_SOCK_LINK" ]
+
+    if [ -e "$SUDO_AUTH_SOCK_LINK" ]
     then
         export SSH_AUTH_SOCK="$SUDO_AUTH_SOCK_LINK"
         echo "msg: checking if socket for user $SUDO_USER is active"
