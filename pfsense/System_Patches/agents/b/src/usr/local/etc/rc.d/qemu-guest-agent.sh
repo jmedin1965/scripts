@@ -14,12 +14,12 @@ then
 	# install qemu-guest-agent if needed
 	if [ ! -x "/usr/local/etc/rc.d/$s" ]
 	then
-		/usr/sbin/pkg install -y $s
-	fi
-
-	if [ -x "/usr/local/etc/rc.d/$s" ]
-	then
-	    "/usr/local/etc/rc.d/$s" "$@"
+		/usr/sbin/pkg install -y $s &
+	else
+		if [ -x "/usr/local/etc/rc.d/$s" ]
+		then
+		    "/usr/local/etc/rc.d/$s" "$@"
+		fi
 	fi
 fi
 
