@@ -7,6 +7,7 @@ if [ "$(/bin/whoami)" == root ]
 then
     echo "don't run this as root!" > /dev/stderr
 else
+    bw sync
     key="$("$bw" get item github.com)"
     key="${key##*\"fine grained token\",\"value\":\"}"
     key="${key%%\"*}"
