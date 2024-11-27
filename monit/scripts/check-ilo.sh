@@ -9,7 +9,7 @@ ssh_opts=(
     )
 
 # warn if fan percent is thi value or higher
-fan_warn="45"
+fan_warn="56"
 
 declare -A ilo_data
 
@@ -60,11 +60,12 @@ main()
 
     if [ "$warn" == yes ] 
     then
-        ilo_cmd 'fan pid 11 sp 5900'
+        ilo_cmd 'fan pid 11 sp 6000'
         ilo_cmd 'fan pid 31 sp 5300'
         ilo_cmd 'fan pid 40 sp 4700'
         ilo_cmd 'fan pid 42 lo 10000'
         ilo_cmd 'fan pid 46 sp 4400'
+        ilo_cmd 'fan pid 49 sp 6000'
         ilo_cmd 'fan pid 50 sp 3800'
         echo "Warning: Fan speed greater that $fan_warn $scale, setting fan speed."
         EV=$((EV + 1))
