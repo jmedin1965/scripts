@@ -9,7 +9,7 @@ ssh_opts=(
     )
 
 # warn if fan percent is thi value or higher
-fan_warn="56"
+fan_warn="57"
 
 declare -A ilo_data
 
