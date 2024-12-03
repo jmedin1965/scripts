@@ -166,7 +166,7 @@ Need to add description
 Need to add description
 
 ===== bin/readme.txt =====
-Need to add description
+This zim file.
 
 ===== bin/scsi-rescan =====
 Need to add description
@@ -190,10 +190,10 @@ Need to add description
 Need to add description
 
 ===== bin/terraform =====
-Need to add description
+The terraform linux binary. Need git-lfs to checkout this file. I might just remove this in future.
 
 ===== bin/terraform-provider-install.sh =====
-Need to add description
+A script to update the terraform binary.
 
 ===== bin/wbinfo-g =====
 Need to add description
@@ -202,5 +202,5 @@ Need to add description
 Need to add description
 
 ===== bin/zim =====
-Need to add description
+A script that runs zim in the background. Usefull when running zim on WSL. 
 

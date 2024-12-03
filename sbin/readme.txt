@@ -5,11 +5,6 @@ Creation-Date: 2024-12-02T15:22:58+11:00
 ====== readme ======
 Created Monday 02 December 2024
 
-===== sbin/wsl-dos-x-run.sh ===== is missing
-script to work out dhcp options 100 and 101 for you, or at least make it easier. Probably needs some work for certain timezones
-
-called as wsl-dos-x-run.sh "Australia/NSW" "Australia/Brisbane" ...
- 
 ===== sbin/add_bareos_repositories.sh =====
 Need to add description
 
@@ -38,7 +33,11 @@ Need to add description
 Need to add description
 
 ===== sbin/dhcp-POSIX-Time.sh =====
-Need to add description
+script to work out dhcp options 100 and 101 for you, or at least make it easier. Probably needs some work for certain timezones
+
+example:
+ 
+	dhcp-POSIX-Time.sh  "Australia/NSW" "Australia/Brisbane" ...
 
 ===== sbin/filesystem-merge-squashfs.sh =====
 Need to add description
@@ -91,7 +90,7 @@ Need to add description
 ===== sbin/netapp-sector-520.sh =====
 Need to add description
 
-===== sbin/pfs-backup-config.sh ===== is missing
+===== sbin/pfs-backup-config.sh ===== is missing ===== is missing
 Need to add description
 
 ===== sbin/proxmox-backup-turn-off.sh =====
