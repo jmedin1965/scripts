@@ -1,0 +1,166 @@
+#!/bin/bash
+#
+# An example hook script to verify what is about to be committed.
+# Called by "git commit" with no arguments.  The hook should
+# exit with non-zero status after issuing an appropriate message if
+# it wants to stop the commit.
+#
+# To enable this hook, rename this file to "pre-commit".
+
+# Redirect output to stderr.
+
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
+
+exec 1>&2
+
+timeout="20"
+pwd="$(pwd)"
+name="$(/bin/basename "$(pwd)")"
+temp_f="/tmp/$name"
+user="$(/bin/whoami)"
+template="Default"
+template="Default_with_index"
+
+info_str=""
+info()
+{
+    echo "pre-commit:" "$@"
+    info_str="${info_str}pre-commit: $@
+"
+    #echo "pre-commit:" "$@" >> /tmp/pre-commit.log
+}
+
+info "name=$name"
+info "pwd=$pwd"
+info "script=$0"
+
+[ ! -d hooks -a -d .git ] && mkdir hooks
+cp "$0" hooks
+
+if [ "$user" = root ]
+then
+    if [ -x /mnt/c/Windows/system32/cmd.exe ]
+    then
+        user="$(/mnt/c/Windows/system32/cmd.exe /c whoami 2>/dev/null | /usr/bin/tr -d '\015')"
+        user=${user##*\\}
+    else
+        user="zim"
+        if ! getent passwd $user
+        then
+            adduser --system --no-create-home --disabled-password --disabled-login $user
+        fi
+    fi
+fi
+
+info running zim as used \"$user\"
+
+if [ -e "notebook.zim" ]
+then
+    info "notebook.zim exists. Assuming this is a zim notebook"
+
+
+    # html export
+    if [ -d docs ]
+    then
+        info "docs folder exists, generating html in docs folder ..."
+        /bin/rm -rf docs
+        info "cleaning old html files: $?"
+
+        info /usr/bin/zim --export -r --output=./docs --format=html --template $template --index index "../$name"
+        /usr/bin/sudo -u $user /usr/bin/zim --export -r --output=./docs --format=html --template $template --index index "../$name"
+        info "generate html docs $?"
+
+        git add docs
+        info "git add html docs $?"
+    else
+        info "docs folder does not exists, not generating html."
+    fi
+
+    # markdown export
+    /bin/find . -name '*.md' -exec /bin/rm -f {} \;
+    info "clean out old md files $?"
+
+    [ -d "$temp_f" ] && /bin/rm -rf "$temp_f" 
+    info "clean out markdown folder $?"
+    mkdir -p "$temp_f"
+
+    for d in bin sbin
+    do
+        if [ -e "$d/readme.txt" ]
+        then
+            info processing $d
+            for f in "$d"/*
+            do
+                if [ ! -d "$f" ]
+                then
+                    if [ "$(fgrep -c "$f" "$d/readme.txt")" == 0 ]
+                    then
+                        info "  adding $f"
+                        echo "
+===== $f =====
+Need to add description" >> $d/readme.txt
+                    fi
+                fi
+            done
+        fi
+        git add "$d/readme.txt"
+        info "git add $d/readme.txt $?"
+    done
+
+    info rsync -amv --include-from=- "./" "$temp_f/$name/"
+    rsync -amv --include-from=- "./" "$temp_f/$name/" << END
++ /notebook.zim
++ *.txt
++ */
+- *
+END
+    mkdir "$temp_f/export"
+    chown -R "$user" "$temp_f"
+    cd "$temp_f/$name"
+
+    info /usr/bin/sudo -u $user /usr/bin/zim --export -r "--output=$temp_f/export" --format=markdown --index index "$temp_f/$name"
+    /usr/bin/sudo -u $user /usr/bin/zim --export -r "--output=$temp_f/export" --format=markdown --index index "$temp_f/$name"
+    info "export to md $?"
+
+    if cd "$temp_f/export"
+    then
+        info "cd to markdown export dir $temp_f/export: $?"
+        /bin/find . -name '*.md' -exec /bin/cp -v {} $pwd/{} \;
+        info "find and copy md files $?"
+    fi
+
+    cd "$pwd"
+    info "cd back up $?"
+
+    [ -d "$temp_f" ] && /bin/rm -rf "$temp_f"
+    info "clean out markdown folder $?"
+
+    # process readme file
+    readme="readme.md"
+    [ -e "README.md" ] && readme="README.md" 
+    if [ -e "$readme" -a -e index.md ]
+    then
+        echo >> "$readme"
+        /bin/cat index.md >> "$readme"
+        /bin/rm index.md
+        info "generate $readme from index.md $?"
+
+    elif [ -e index.md ]
+    then
+        /bin/mv index.md readme.md
+        info "rename index.md to readme.md $?"
+    else
+        info "no index.md found"
+    fi
+fi
+
+git add '*.md'
+info "git add all md files $?"
+
+if [ -n "$DISPLAY" -a -x /usr/bin/xmessage ] 
+then
+    info "sending info to xmessage"
+    info "This message will self-destruct in $timeout seconds..."
+    echo "$info_str" | /usr/bin/xmessage -file - -timeout $timeout &
+fi
+
