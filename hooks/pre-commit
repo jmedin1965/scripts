@@ -88,7 +88,7 @@ then
     do
         if [ -e "$d/readme.txt" ]
         then
-            info processing $d
+            info "processing $d for missing descriptions."
             for f in "$d"/*
             do
                 if [ ! -d "$f" ]
@@ -102,6 +102,19 @@ Need to add description" >> $d/readme.txt
                     fi
                 fi
             done
+
+            info "processing $d/readme.txt for deleted files"
+            while read line
+            do
+                f="${line#===== }"
+                f="${f% =====}"
+                if [ ! -e "$f" ]
+                then
+                    info " check $line - $f - missing"
+                    perl -pi -e "s,^$line,$line is missing,g" "$d/readme.txt"
+                fi
+            done <<< "$(grep -e '^===== .* =====$'  "$d/readme.txt")"
+
         fi
         git add "$d/readme.txt"
         info "git add $d/readme.txt $?"

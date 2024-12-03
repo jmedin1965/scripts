@@ -5,7 +5,7 @@ Creation-Date: 2024-12-02T15:22:58+11:00
 ====== readme ======
 Created Monday 02 December 2024
 
-===== sbin/wsl-dos-x-run.sh =====
+===== sbin/wsl-dos-x-run.sh ===== is missing
 script to work out dhcp options 100 and 101 for you, or at least make it easier. Probably needs some work for certain timezones
 
 called as wsl-dos-x-run.sh "Australia/NSW" "Australia/Brisbane" ...
@@ -91,7 +91,7 @@ Need to add description
 ===== sbin/netapp-sector-520.sh =====
 Need to add description
 
-===== sbin/pfs-backup-config.sh =====
+===== sbin/pfs-backup-config.sh ===== is missing
 Need to add description
 
 ===== sbin/proxmox-backup-turn-off.sh =====
@@ -174,3 +174,4 @@ Need to add description
 
 ===== sbin/wsl-crontab-commands.sh =====
 Need to add description
+
