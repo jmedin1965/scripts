@@ -11,6 +11,7 @@ use IO::File;
 use String::ShellQuote 'shell_quote';
 use Text::ParseWords;
 use File::Basename;
+use POSIX;
 
 my $PROGNAME = basename($0);
 my $CONFIG_PATH = "/var/lib/${PROGNAME}";
@@ -23,7 +24,7 @@ my $LXC_CONF = "${PVE_DIR}/lxc";
 my $PROG_PATH = "$PATH/${PROGNAME}";
 my $INTERVAL = 15;
 my $DEBUG;
-
+my $PID = "$$";
 
 BEGIN {
     $DEBUG = 0; # change default here. not above on declaration!
@@ -71,9 +72,11 @@ if (defined($command) && $command ne 'help' && $command ne 'printpod') {
     check_bin ('zfs');
     check_bin ('ssh');
     check_bin ('scp');
+    check_bin ('logger');
 }
 
 $SIG{TERM} = $SIG{QUIT} = $SIG{PIPE} = $SIG{HUP} = $SIG{KILL} = $SIG{INT} =  sub {
+    log_msg( "Signaled, aborting sync: $!");
     die "Signaled, aborting sync: $!\n";
 };
 
@@ -263,7 +266,11 @@ sub parse_argv {
 	dest_config_path => undef,
     prog => undef,
     args => undef,
+    log_file => undef,
     };
+
+    my $log_file = undef;
+    my $fh;
 
     my ($ret) = GetOptionsFromArray(
 	\@arg,
@@ -283,9 +290,18 @@ sub parse_argv {
 	'properties' => \$param->{properties},
 	'dest-config-path=s' => \$param->{dest_config_path},
     'prog=s' => \$param->{prog},
+    'log-file=s' => \$log_file,
     );
 
     die "can't parse options\n" if $ret == 0;
+    if ( defined( $log_file ) ) { 
+        #open( $fh, '>>', $log_file ) or die "$log_file : unable to open file.";
+        my $fh = IO::File->new(">> $log_file")
+            or die "$log_file : unable to open log file.";
+        $param->{log_file} = $fh;
+        print {$fh} "yes it is opened\n";
+        print {$param->{log_file}} "yes it is opened $log_file again\n";
+    }
 
     $param->{name} //= "default";
     $param->{maxsnap} //= 1;
@@ -654,33 +670,59 @@ sub sanoid_hook {
     
     my $rv = 0;
 
-    if ( !defined( $ENV{SANOID_SCRIPT} ) ) {
-        die "Need to define what hook script to run via SANOID_SCRIPT ENV variable.\n"
+    log_msg ( "hook script called." );
+
+    for my $env_var ( "SANOID_SCRIPT", "SANOID_TARGET", "SANOID_TARGETS", "SANOID_SNAPNAME", "SANOID_SNAPNAMES", "SANOID_TYPES" ) {
+        log_msg( " $env_var = " . $ENV{$env_var} ) if defined( $ENV{$env_var} );
     }
-    elsif( $ENV{SANOID_SCRIPT} eq "pre" ) {
-	    for my $target ( split(",", $ENV{SANOID_TARGETS}) ) {
+    
+    if ( !defined( $ENV{SANOID_SCRIPT} ) ) {
+        log_msg( "Need to define what hook script to run via SANOID_SCRIPT ENV variable." );
+        die "Need to define what hook script to run via SANOID_SCRIPT ENV variable.\n";
+    }
+    else {
+        log_msg( "doing " . $ENV{SANOID_SCRIPT} );
 
-            $target = basename($target);
-            print "sanoid_hook: $target ";
+        if( $ENV{SANOID_SCRIPT} eq "pre" ) {
+            log_msg( " SANOID_TARGETS = " . $ENV{SANOID_TARGETS} );
 
-            if($target =~ m/$SANOID_PRE_HOOK_RE/) {
-                print "is a disk. vm $1 ";
-                my $source->{vmid} = $1;
-                if( vm_exists( $source, "" ) ) {
-                    print "exists.\n";
+            for my $target ( split(",", $ENV{SANOID_TARGETS}) ) {
+
+                log_msg ( "  process target " . $target );
+
+                $target = basename($target);
+                log_msg ( "  process target " . $target );
+
+                if($target =~ m/$SANOID_PRE_HOOK_RE/) {
+                    log_msg ( "    is a disk. vm $1");
+                    my $source->{vmid} = $1;
+                    if( vm_exists( $source, "" ) ) {
+                        log_msg ( "    exists." );
+                    } else {
+                        log_msg ( "    does not exists." );
+                        $rv = 1;
+                    }
                 } else {
-                    print "does not exists.\n";
                     $rv = 1;
+                    log_msg ( "    not a disk." );
                 }
-            } else {
-                $rv = 1;
-                print "not a disk\n";
             }
         }
-    } else {
-        die "Don't know how to handle a \"$ENV{SANOID_SCRIPT}\" SANOID_SCRIPT.\n"
+        elsif( $ENV{SANOID_SCRIPT} eq "post" ) {
+            log_msg( " Nothing to do for post yet." );
+        }
+        elsif( $ENV{SANOID_SCRIPT} eq "prune" ) {
+            log_msg( " Nothing to do for prune yet." );
+        }
+        else {
+            log_msg( "Don't know how to handle a \"$ENV{SANOID_SCRIPT}\" SANOID_SCRIPT." );
+            die "Don't know how to handle a \"$ENV{SANOID_SCRIPT}\" SANOID_SCRIPT.\n";
+        }
+
+        log_msg( "done " . $ENV{SANOID_SCRIPT} );
     }
 
+    log_msg ( "hook script done, rv = $rv" );
     return( $rv );
 }
 
@@ -1496,7 +1538,13 @@ $PROGNAME sanoid_hook
 };
 
 if (!$command) {
-    usage(); die "\n";
+
+    if( defined( $ENV{SANOID_SCRIPT} ) ) {
+        $command = 'sanoid_hook';
+    }
+    else {
+        usage(); die "\n";
+    }
 } elsif (!$cmd_help->{$command}) {
     print "ERROR: unknown command '$command'\n";
     usage(1); die "\n";
@@ -1511,6 +1559,7 @@ sub check_params {
     }
 }
 
+# check if the bin prog exists it it is not zsync
 if(!($param->{prog} eq 'zsync')) {
     check_bin ($param->{prog});
 }
@@ -1567,13 +1616,29 @@ if ($command eq 'destroy') {
     check_target($param->{source});
     disable_job($param);
 
-} elsif ($command eq 'sanoid_hook') { 
-
-    exit( sanoid_hook() );
-
 } elsif ($command eq 'printpod') {
     print_pod();
+
+} elsif ($command eq 'sanoid_hook' ) { 
+
+    exit( sanoid_hook() );
 }
+
+sub log_msg {
+    my $msg  = join( ' ', @_ );
+
+    if( $command eq 'sanoid_hook' ) {
+        if( defined( $ENV{SANOID_SCRIPT} ) ) {
+            $msg = "sanoid" . "[$$]: " . $ENV{SANOID_SCRIPT} . ": " . $msg;
+        }
+        else {
+            $msg = "sanoid" . "[$$]: " . $msg;
+        }
+    }
+
+    system( 'logger', '-t', "$PROGNAME", "--id=$PID", '-p', 'local3.info', $msg  );
+}
+
 
 sub usage {
     my ($help) = @_;
