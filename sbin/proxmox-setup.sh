@@ -321,7 +321,7 @@ removeSubscriptionMessage()
     if [ ! -e /etc/apt/apt.conf.d/99no-nag-script.conf ]
     then
         info "Installing 99no-nag-script.conf as a DPkg::Post-Invoke script"
-        echo "DPkg::Post-Invoke { \"$0 subscription\"; };" > /etc/apt/apt.conf.d/99no-nag-script.conf
+        echo "DPkg::Post-Invoke { \"$(/usr/bin/readlink -f "$0") subscription\"; };" > /etc/apt/apt.conf.d/99no-nag-script.conf
     fi
 }
 
