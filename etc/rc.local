@@ -27,10 +27,10 @@ if [ -d "/etc/pve" ]
 then
     log "checking scripts in $scripts_d"
     i="$script_try"
-    while [ ! -d "$scripts_d" -a "$i" != 0 ]
+    while [ ! -d "/etc/pve/local" -a "$i" != 0 ]
     do
         i=`expr $i - 1`
-        log "  $scripts_d: does not exist, wait for pve to start"
+        log "  /etc/pve/local: does not exist, wait for pve to start"
         sleep $script_sleep
     done
 
