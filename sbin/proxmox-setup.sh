@@ -145,6 +145,11 @@ do_all()
     then
         echo "deb http://download.proxmox.com/debian/pve $codename pve-no-subscription" > \
             /etc/apt/sources.list.d/pve-install-repo.list
+        if [ -e /etc/apt/sources.list.d/ceph.list ]
+        then
+            echo "deb http://download.proxmox.com/debian/ceph-quincy $codename no-subscription" > \
+                /etc/apt/sources.list.d/ceph.list
+        fi
     fi
 
     # Proxmox Mail Gateway
