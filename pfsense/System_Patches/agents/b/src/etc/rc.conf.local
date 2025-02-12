@@ -10,5 +10,6 @@ qemu_guest_agent_flags="-d -v -l /var/log/qemu-ga.log"
 
 csync2_enable="YES"
 
+syncthing_enable="YES"
 
 #
