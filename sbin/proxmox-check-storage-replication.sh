@@ -37,8 +37,8 @@ do
     # if not a job ID, but skip the first line, i = -1
     elif [ "$i" -ge 0  ]
     then
-        State[$i]="${State[$i]} ${line}"
-        lines[$i]="${lines[$i]} $line"
+        State[$i]="${State[$i]}, ${line}"
+        lines[$i]="${lines[$i]}, $line"
     else
         header="$line"
     fi
