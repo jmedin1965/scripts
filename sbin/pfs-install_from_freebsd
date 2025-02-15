@@ -7,9 +7,30 @@
 prog=`/usr/bin/basename "$0"`
 packagesite_d="/var/cache"
 opt_yes=""
+opt_dry_run=""
 
 main()
 {
+	while :
+	do
+		case "$1" in
+		"-n")
+			opt_dry_run="true"
+			shift
+			;;
+		"-y")
+			opt_yes="true"
+			shift
+			;;
+		"-"*)
+			echo "unknown option $1" > /dev/stderr
+			usage
+			;;
+		*)
+			break;;
+		esac
+	done
+
 	if [ "$1" == -y ]
 	then
 		opt_yes="true"
@@ -30,7 +51,10 @@ main()
 
 usage()
 {
-	echo "Usage: $prog <package>" > /dev/stderr
+	echo "Usage: $prog [-n] [-y] <package>" > /dev/stderr
+	echo "where:" > /dev/stderr
+	echo "-y - install without asking [y/N]" > /dev/stderr
+	echo "-n - dry-run" > /dev/stderr
 	exit 1
 }
 
@@ -70,7 +94,11 @@ get_pkg()
 		if [ -n "$pkg" ]
 		then
 			echo "info: pakage=$pkg"
-			if [ -n "$opt_yes" ]
+			if [ "$opt_dry_run" = "true" ]
+			then
+				echo "dry-run: pkg add -f \"${base_url}/${pkg}\""
+
+			elif [ -n "$opt_yes" ]
 			then
 				echo "y" | pkg add -f "${base_url}/${pkg}"
 			else
