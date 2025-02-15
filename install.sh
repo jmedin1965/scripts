@@ -70,6 +70,16 @@ then
     fi
 fi
 
+# do platform specific stuff
+ID=""
+VERSION=""
+[ -e /etc/os-release ] && source /etc/os-release
+[ -e /etc/version ] && ID=`cat /etc/platform`
+[ -e /etc/version ] && VERSION=`cat /etc/version`
+echo
+echo "ID=$ID"
+echo "VERSION=$VERSION"
+
 # do cleanup
 unset git_repo git_repo_local cron_d t vim_dir vimlocal
 
