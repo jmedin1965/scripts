@@ -310,9 +310,10 @@ removeSubscriptionMessage()
     if [ -e /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js ]
     then
         info "check and fix subscription message."
+        info "checking $(/usr/bin/readlink -f "$0")."
         if dpkg -V proxmox-widget-toolkit | grep -q '/proxmoxlib\.js$'
         then
-            info "/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js: file is changed, fixing not needed."
+            info "/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js: file is not changed, no fix needed."
         else
             info "/usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js: file needs fixing."
             sed -Ezi.bak \
