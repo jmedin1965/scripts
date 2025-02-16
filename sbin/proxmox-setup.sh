@@ -1,6 +1,6 @@
 #!/bin/bash
 
-proxmox_packages="tmux htop iotop nload bmon ifupdown2 ethtool liblz4-tool sysstat command-not-found csync2"
+proxmox_packages="tmux htop iotop nload bmon ifupdown2 ethtool liblz4-tool sysstat command-not-found dkms csync2 syncthing"
 proxmox_gateway_pachages="ifupdown2 ethtool"
 extra_packages="vim ethtool"
 
