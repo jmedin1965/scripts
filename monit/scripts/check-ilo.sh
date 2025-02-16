@@ -1,5 +1,37 @@
 #!/bin/bash
 
+#
+# Enable legacy to be able to ssh. This is done at /root/.ssh/config
+#
+# REF: /usr/local/scripts/monit/scripts/check-ilo.sh
+#
+# And now how to add the key to ilo4, I should have documented this
+# The ilo4 web mentions to convert the key to pem, but no. The .pub key
+# works fine.
+# Navigate to Administration>>Security
+# Click on the user and click "Authorise New Key"
+# Add the key. The key needs to be generated special though
+# REF: https://support.hpe.com/hpesc/public/docDisplay?docId=sd00001038en_us&page=GUID-748CFA7C-9B5D-4EF9-872F-C39402C0FBD3.html
+#
+# Authorizing a new SSH key by using the web interface
+# Prerequisites
+# Administer User Accounts privilege
+#
+# Procedure
+# Generate a 2,048-bit DSA or RSA key by using ssh-keygen, puttygen.exe, or another SSH key utility.
+# Save the public key as key.pub.
+# Copy the contents of the key.pub file.
+# Navigate to the Administration > Security page.
+# Click the Secure Shell Key tab.
+# Select the check box to the left of the user account to which you want to add an SSH key.
+# Each user account can have only one key assigned.
+#
+# Click Authorize New Key.
+# Paste the public key into the Public Key Import Data box.
+# Click Import Public Key.
+# The Authorized SSH Keys table is updated to show the hash of the SSH public key associated with the user account.
+#
+
 host="admin@10.10.1.33"
 host="admin@192.168.10.33"
 
