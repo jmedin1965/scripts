@@ -39,14 +39,14 @@ then
 	then
 		echo "remove SSH_AUTH_SOCK that this session was using $SSH_AUTH_SOCK_ORIG"
 		echo /bin/rm -f "$SSH_AUTH_SOCK_ORIG"
-        SSH_AUTH_SOCK=""
+        export SSH_AUTH_SOCK=""
         for SSH_AUTH_SOCK_ORIG in `/bin/ls -c --reverse "$AUTH_SOCK_D"/*`
 		do
 			if [ -S "$SSH_AUTH_SOCK_ORIG" ]
 			then
                 if [ -z "$SSH_AUTH_SOCK" ]
                 then
-                    SSH_AUTH_SOCK="$SSH_AUTH_SOCK_ORIG"
+                    export SSH_AUTH_SOCK="$SSH_AUTH_SOCK_ORIG"
                     echo "testing: $SSH_AUTH_SOCK"
                     ssh-add -l 2>/dev/null >/dev/null   # test if local socket is active
                     if [ $? -ge 2 ] # if not active
@@ -79,14 +79,46 @@ then
     echo "msg: we are using Cygwin."
 fi
 
+
+echo "msg: SUDO_USER=$SUDO_USER"
+# WSL2, hack to use openssh to create the ssh-agent tunnel
+if [[ "`run_cmd uname -r`" =~ .*WSL2 ]] 
+then
+    echo "msg: we are using WSL2"
+    export AUTH_SOCK=~/.ssh/ssh-agent-link.sock
+
+    if [ -n "$SUDO_USER" ]
+    then
+        echo "msg: we have SUDO'd from $SUDO_USER"
+
+    elif [ -z "$SSH_AUTH_SOCK" -a -x '/mnt/c/Program Files/OpenSSH-Win64/ssh.exe' ]
+    then
+        export SSH_AUTH_SOCK="$AUTH_SOCK"
+        ssh-add -l 2>/dev/null >/dev/null   # test if socket is active
+        if [ $? -ge 2 ]
+        then
+            echo "msg: about to start ssh-agent tunel"
+            '/mnt/c/Program Files/OpenSSH-Win64/ssh.exe' -A -p 2222 ${USER}@`/usr/bin/hostname -I` -t -t bash -c \
+                ': ; ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh-agent-link.sock ; sleep infinity ; echo done'&
+            echo "msg: done start ssh-agent tunel"
+            sleep 2
+        else
+            echo "msg: agent already active, nothing to be done."
+        fi
+    else
+        echo "err: /mnt/c/Program Files/OpenSSH-Win64/ssh.exe: prog does not exist, please install it."
+    fi
+fi
+
 # if we have been pased an SSH_AUTH_SOCK then
 if [ -n "$SSH_AUTH_SOCK" ]
 then
+    echo yes, we have SSH_AUTH_SOCK=$SSH_AUTH_SOCK
     [ -d "$AUTH_SOCK_D" ] || ( /bin/mkdir "$AUTH_SOCK_D"; /bin/chmod 0700 "$AUTH_SOCK_D" )
     echo "msg: SSH_AUTH_SOCK was set to: $SSH_AUTH_SOCK"
     if [ "$SSH_AUTH_SOCK" != "$AUTH_SOCK" ] # if SSH_AUTH_SOCK is not pointing to the local one then
     then
-        echo "msg: SSH_AUTH_SOCK:$SSH_AUTH_SOCK != AUTH_SOCK:$AUTH_SOCK"
+        echo "msg: xx SSH_AUTH_SOCK:$SSH_AUTH_SOCK != AUTH_SOCK:$AUTH_SOCK"
         # check if the one passed is active, if it is, use this one
         ssh-add -l 2>/dev/null >/dev/null   # test if local socket is active
         if [ $? -ge 2 ] # if not active
@@ -101,7 +133,7 @@ then
                 echo "msg: SSH_AUTH_SOCK == AUTH_SOCK_LINK. We must be uning tmux so do nothing"
                 unset SSH_AUTH_SOCK_ORIG
             else
-                SSH_AUTH_SOCK_ORIG="$AUTH_SOCK_D/`run_cmd basename "$SSH_AUTH_SOCK"`"
+                export SSH_AUTH_SOCK_ORIG="$AUTH_SOCK_D/`run_cmd basename "$SSH_AUTH_SOCK"`"
                 echo ln -sf "$SSH_AUTH_SOCK" "$SSH_AUTH_SOCK_ORIG"
                 [ -e "$SSH_AUTH_SOCK_ORIG" ] && /bin/rm -f "$SSH_AUTH_SOCK_ORIG"
                 ln -sf "$SSH_AUTH_SOCK" "$SSH_AUTH_SOCK_ORIG"
@@ -114,7 +146,6 @@ then
 
                 echo SSH_AUTH_SOCK=$SSH_AUTH_SOCK
                 echo SSH_AUTH_SOCK_ORIG=$SSH_AUTH_SOCK_ORIG
-                export SSH_AUTH_SOCK_ORIG
             fi
         fi
     fi
@@ -129,6 +160,7 @@ then
     then
         export SSH_AUTH_SOCK="$SUDO_AUTH_SOCK"
         echo "msg: checking if socket for user $SUDO_USER is active"
+        echo "msg: SSH_AUTH_SOCK=$SUDO_AUTH_SOCK"
         ssh-add -l 2>/dev/null >/dev/null
         if [ $? -ge 2 ]
         then
@@ -143,6 +175,7 @@ then
     then
         export SSH_AUTH_SOCK="$SUDO_AUTH_SOCK_LINK"
         echo "msg: checking if socket for user $SUDO_USER is active"
+        echo "msg: SSH_AUTH_SOCK=$SUDO_AUTH_SOCK_LINK"
         ssh-add -l 2>/dev/null >/dev/null
         if [ $? -ge 2 ]
         then
@@ -170,6 +203,7 @@ fi
 
 # ok, now we should be pointing to the right socket file
 # lets check if it is active
+echo "checking SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
 ssh-add -l 2>/dev/null >/dev/null   # test if socket is active
 if [ $? -ge 2 ]
 then
