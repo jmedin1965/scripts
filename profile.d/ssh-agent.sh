@@ -3,6 +3,9 @@ export AUTH_SOCK=~/.ssh/ssh-agent.sock
 export AUTH_SOCK_LINK=~/.ssh/ssh-agent-link.sock
 export AUTH_SOCK_D=~/.ssh/ssh-agent.sock.d
 export SSH_AGENT="ssh-agent"
+WIN_SSH_AGENT="/c/Program Files/OpenSSH-Win64/ssh.exe"
+WIN_SSH_KEY=~/.ssh/id_rsa.pub
+WIN_SSH_AUTHORIZED_KEYS_F=~/.ssh/authorized_keys
 
 # did this for FreeBSD/PFsense
 run_cmd()
@@ -91,15 +94,22 @@ then
     then
         echo "msg: we have SUDO'd from $SUDO_USER"
 
-    elif [ -z "$SSH_AUTH_SOCK" -a -x '/mnt/c/Program Files/OpenSSH-Win64/ssh.exe' ]
+    elif [ -z "$SSH_AUTH_SOCK" -a -x "$WIN_SSH_AGENT" ]
     then
         export SSH_AUTH_SOCK="$AUTH_SOCK"
         ssh-add -l 2>/dev/null >/dev/null   # test if socket is active
         if [ $? -ge 2 ]
         then
+            if ! /usr/bin/fgrep -q "`/usr/bin/cat "$WIN_SSH_KEY"`" "$WIN_SSH_AUTHORIZED_KEYS_F"
+            then
+                echo "mgs: adding key to auth keys file"
+                /usr/bin/cat "$WIN_SSH_KEY" >> "$WIN_SSH_AUTHORIZED_KEYS_F" 
+            fi
+
             echo "msg: about to start ssh-agent tunel"
-            '/mnt/c/Program Files/OpenSSH-Win64/ssh.exe' -A -p 2222 ${USER}@`/usr/bin/hostname -I` -t -t bash -c \
-                ': ; ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh-agent-link.sock ; sleep infinity ; echo done'&
+            "$WIN_SSH_AGENT" -o IdentitiesOnly=yes -A -p 2222 ${USER}@`/usr/bin/hostname -I` -t -t bash -c \
+                ": ; ln -sf \"\$SSH_AUTH_SOCK\" $AUTH_SOCK ; sleep infinity ; echo done"&
+                #': ; ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh-agent-link.sock ; sleep infinity ; echo done'&
             echo "msg: done start ssh-agent tunel"
             sleep 2
         else
