@@ -17,6 +17,7 @@ main()
     printf="/usr/bin/printf"
     wget="/usr/bin/wget"
     unzip="/usr/bin/unzip"
+    dirname="/usr/bin/dirname"
     command=""
     opt=""
 
@@ -27,7 +28,7 @@ main()
     if [ ! -x "$bw" ]
     then
        "$wget" --continue -O "/tmp/bw.zip" "$bw_download_link" 
-       "$unzip" -d "$(/usr/bin/dirname "$bw")" "/tmp/bw.zip" bw
+       "$unzip" -d "$($dirname "$bw")" "/tmp/bw.zip" bw
     fi
 
     if [ -x "$bw" ]
@@ -76,16 +77,17 @@ do_init()
     export PATH="/usr/local/scripts/bin:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
 
     [ -x "$pinentry" ] || err "Unable for find pinentry program"
-    [ -x "$xhost" ]  || err "Unable for find xhost program"
+    [ -x "$xhost" ]    || err "Unable for find xhost program"
     info "xhost = $xhost"
-    [ -n "$tty" ]    || err "Unable for find tty"
-    [ -x "$rm" ]     || err "Unable for find rm program"
-    [ -x "$mount" ]  || err "Unable for find mount program"
-    [ -x "$grep" ]   || err "Unable for find grep program"
-    [ -x "$fgrep" ]  || err "Unable for find fgrep program"
-    [ -x "$printf" ] || err "Unable for find printf program"
-    [ -x "$wget" ]   || err "Unable for find wget program"
-    [ -x "$unzip" ]  || err "Unable for find unzip program"
+    [ -n "$tty" ]      || err "Unable for find tty"
+    [ -x "$rm" ]       || err "Unable for find rm program"
+    [ -x "$mount" ]    || err "Unable for find mount program"
+    [ -x "$grep" ]     || err "Unable for find grep program"
+    [ -x "$fgrep" ]    || err "Unable for find fgrep program"
+    [ -x "$printf" ]   || err "Unable for find printf program"
+    [ -x "$wget" ]     || err "Unable for find wget program"
+    [ -x "$unzip" ]    || err "Unable for find unzip program"
+    [ -x "$dirname" ]  || err "Unable for find dirname program"
     info "do init stuff done"
 }
 
