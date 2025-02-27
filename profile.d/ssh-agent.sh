@@ -103,7 +103,11 @@ then
     then
         msg "we have SUDO'd from $SUDO_USER"
 
-    elif [ -z "$SSH_AUTH_SOCK" -a -x "$WIN_SSH_AGENT" ]
+    elif [ -n "$SSH_AUTH_SOCK" ]
+    then
+        msg "we have been passed a socket, using this socket."
+
+    elif [ -x "$WIN_SSH_AGENT" ]
     then
         export SSH_AUTH_SOCK="$AUTH_SOCK"
         ssh-add -l 2>/dev/null >/dev/null   # test if socket is active
@@ -117,15 +121,14 @@ then
 
             msg "about to start ssh-agent tunel"
             "$WIN_SSH_AGENT" -o IdentitiesOnly=yes -A -p 2222 ${USER}@`/usr/bin/hostname -I` -t -t bash -c \
-                ": ; ln -sf \"\$SSH_AUTH_SOCK\" $AUTH_SOCK ; sleep infinity ; echo done"&
+                ": ; ln -sf \"\$SSH_AUTH_SOCK\" $AUTH_SOCK ; sleep 2d ; echo done"&
                 #': ; ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh-agent-link.sock ; sleep infinity ; echo done'&
             msg "done start ssh-agent tunel"
             sleep 2
         else
             msg "agent already active, nothing to be done."
         fi
-    elif [ ! -x "$WIN_SSH_AGENT" ]
-    then
+    else
         msg "err: $WIN_SSH_AGENT: prog does not exist, please install it."
     fi
 fi
