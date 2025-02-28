@@ -121,7 +121,8 @@ then
 
             msg "about to start ssh-agent tunel"
             "$WIN_SSH_AGENT" -o IdentitiesOnly=yes -A -p 2222 ${USER}@`/usr/bin/hostname -I` -t -t bash -c \
-                ": ; ln -sf \"\$SSH_AUTH_SOCK\" $AUTH_SOCK ; sleep 2d ; echo done"&
+                ": ; ln -sf \"\$SSH_AUTH_SOCK\" $AUTH_SOCK ; while :; do sleep 1d ; done"&
+                #": ; ln -sf \"\$SSH_AUTH_SOCK\" $AUTH_SOCK ; sleep 2d ; echo done"&
                 #': ; ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh-agent-link.sock ; sleep infinity ; echo done'&
             msg "done start ssh-agent tunel"
             sleep 2
@@ -251,4 +252,7 @@ then
         /bin/chmod 0600 ~/.bash_logout
     fi
 fi
+
+echo
+ssh-add -l
 
