@@ -8,6 +8,8 @@ main()
     bw="/usr/local/bin/bw"
     bw_download_link="https://vault.bitwarden.com/download/?app=cli&platform=linux"
     tmp="$( /usr/bin/readlink -f "$HOME/.ssh/tmp" )"
+    bw_session_f="git-credential-bw.key"
+    [ -d /run/user/1000 ] && tmp="/run/user/1000"
     xhost="/usr/bin/xhost"
     tty="$(/usr/bin/tty)"
     rm="/bin/rm"
@@ -197,7 +199,7 @@ bw_unlock()
                     unset BW_PASSWORD
                     export BW_SESSION
                     info got BW_SESSION=$BW_SESSION
-                    echo -n "$BW_SESSION" > "${tmp}/bw"
+                    echo "$BW_SESSION" > "${tmp}/${bw_session_f}"
                     break
                 else
                     unset BW_PASSWORD
@@ -232,25 +234,25 @@ check_and_unlock()
     if "$bw" unlock --check > /dev/null 2>&1
     then
         info "bw is unlocked."
-        [ -n "$BW_SESSION" ] && echo -n "$BW_SESSION" > "${tmp}/bw"
+        [ -n "$BW_SESSION" ] && echo -n "$BW_SESSION" > "${tmp}/${bw_session_f}"
 
     elif tmp_is_tmpfs
     then
-        info "yes tmp uis a tmpfs."
-        if [ -e "${tmp}/bw" ]
+        info "yes tmp is a tmpfs."
+        if [ -e "${tmp}/${bw_session_f}" ]
         then
-            info "${tmp}/bw: try to use this session key."
-            export BW_SESSION="$(<${tmp}/bw)"
+            info "${tmp}/${bw_session_f}: try to use this session key."
+            export BW_SESSION="$(<${tmp}/${bw_session_f})"
             if "$bw" unlock --check > /dev/null 2>&1
             then
-                info "unlocked by ${tmp}/bw."
+                info "unlocked by ${tmp}/${bw_session_f}."
             else
-                info "unlock by ${tmp}/bw failed."
-                "$rm" -f "${tmp}/bw"
+                info "unlock by ${tmp}/${bw_session_f} failed."
+                "$rm" -f "${tmp}/${bw_session_f}"
                 [ "$check" == "--check" ] || bw_unlock
             fi
         else
-            info "${tmp}/bw: no saved session key found."
+            info "${tmp}/${bw_session_f}: no saved session key found."
             [ "$check" == "--check" ] || bw_unlock
         fi
     else
