@@ -20,6 +20,7 @@ main()
     wget="/usr/bin/wget"
     unzip="/usr/bin/unzip"
     dirname="/usr/bin/dirname"
+    keyctl="/usr/bin/keyctl"
     command=""
     opt=""
 
@@ -90,6 +91,7 @@ do_init()
     [ -x "$wget" ]     || err "Unable for find wget program"
     [ -x "$unzip" ]    || err "Unable for find unzip program"
     [ -x "$dirname" ]  || err "Unable for find dirname program"
+    [ -x "$keyctl" ]   || err "Unable for find dirname keyctl"
     info "do init stuff done"
 }
 
@@ -199,7 +201,8 @@ bw_unlock()
                     unset BW_PASSWORD
                     export BW_SESSION
                     info got BW_SESSION=$BW_SESSION
-                    echo "$BW_SESSION" > "${tmp}/${bw_session_f}"
+                    #echo "$BW_SESSION" > "${tmp}/${bw_session_f}"
+                    echo -n "$BW_SESSION" | "$keyctl" padd user "BW_SESSION" @u > /dev/null
                     break
                 else
                     unset BW_PASSWORD
@@ -234,29 +237,21 @@ check_and_unlock()
     if "$bw" unlock --check > /dev/null 2>&1
     then
         info "bw is unlocked."
-        [ -n "$BW_SESSION" ] && echo -n "$BW_SESSION" > "${tmp}/${bw_session_f}"
+        #[ -n "$BW_SESSION" ] && echo -n "$BW_SESSION" > "${tmp}/${bw_session_f}"
+        [ -n "$BW_SESSION" ] && echo -n "$BW_SESSION" | "$keyctl" padd user "BW_SESSION" @u > /dev/null
 
-    elif tmp_is_tmpfs
-    then
-        info "yes tmp is a tmpfs."
-        if [ -e "${tmp}/${bw_session_f}" ]
+    else
+        info "try to use saved session key."
+        export BW_SESSION="$( id=$(keyctl request user "BW_SESSION" @u 2>/dev/null) \
+            && keyctl print "$id")"
+
+        if "$bw" unlock --check > /dev/null 2>&1
         then
-            info "${tmp}/${bw_session_f}: try to use this session key."
-            export BW_SESSION="$(<${tmp}/${bw_session_f})"
-            if "$bw" unlock --check > /dev/null 2>&1
-            then
-                info "unlocked by ${tmp}/${bw_session_f}."
-            else
-                info "unlock by ${tmp}/${bw_session_f} failed."
-                "$rm" -f "${tmp}/${bw_session_f}"
-                [ "$check" == "--check" ] || bw_unlock
-            fi
+            info "unlocked by aved key"
         else
-            info "${tmp}/${bw_session_f}: no saved session key found."
+            info "unlock by saved key failed."
             [ "$check" == "--check" ] || bw_unlock
         fi
-    else
-        err "${tmp}: not a mounted tmpfs."
     fi
 }
 
