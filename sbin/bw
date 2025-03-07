@@ -10,17 +10,6 @@ main()
     tmp="$( /usr/bin/readlink -f "$HOME/.ssh/tmp" )"
     bw_session_f="git-credential-bw.key"
     [ -d /run/user/1000 ] && tmp="/run/user/1000"
-    xhost="/usr/bin/xhost"
-    tty="$(/usr/bin/tty)"
-    rm="/bin/rm"
-    mount="/bin/mount"
-    fgrep="/usr/bin/fgrep"
-    grep="/usr/bin/grep"
-    printf="/usr/bin/printf"
-    wget="/usr/bin/wget"
-    unzip="/usr/bin/unzip"
-    dirname="/usr/bin/dirname"
-    keyctl="/usr/bin/keyctl"
     command=""
     opt=""
 
@@ -71,6 +60,8 @@ main()
 
 do_init()
 {
+    local prog
+
     info "do init stuff"
     #
     # Lets just force set PATH to what we want, then we can use which to find these
@@ -79,19 +70,16 @@ do_init()
     export SHELL="/bin/sh"
     export PATH="/usr/local/scripts/bin:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
 
-    [ -x "$pinentry" ] || err "Unable for find pinentry program"
-    [ -x "$xhost" ]    || err "Unable for find xhost program"
-    info "xhost = $xhost"
-    [ -n "$tty" ]      || err "Unable for find tty"
-    [ -x "$rm" ]       || err "Unable for find rm program"
-    [ -x "$mount" ]    || err "Unable for find mount program"
-    [ -x "$grep" ]     || err "Unable for find grep program"
-    [ -x "$fgrep" ]    || err "Unable for find fgrep program"
-    [ -x "$printf" ]   || err "Unable for find printf program"
-    [ -x "$wget" ]     || err "Unable for find wget program"
-    [ -x "$unzip" ]    || err "Unable for find unzip program"
-    [ -x "$dirname" ]  || err "Unable for find dirname program"
-    [ -x "$keyctl" ]   || err "Unable for find dirname keyctl"
+    for prog in pinentry xhost tty rm mount grep fgrep printf wget unzip dirname keyctl
+    do
+        if which -s $prog
+        then
+            eval $prog=\"$(which "$prog")\"
+        else
+            err "Unable for find $prog program"
+        fi
+    done
+
     info "do init stuff done"
 }
 
