@@ -119,6 +119,7 @@ then
                 /usr/bin/cat "$WIN_SSH_KEY" >> "$WIN_SSH_AUTHORIZED_KEYS_F" 
             fi
 
+            # REF: https://github.com/benpye/wsl-ssh-pageant/issues/33
             msg "about to start ssh-agent tunel"
             "$WIN_SSH_AGENT" -o IdentitiesOnly=yes -A -p 2222 ${USER}@`/usr/bin/hostname -I` -t -t bash -c \
                 ": ; ln -sf \"\$SSH_AUTH_SOCK\" $AUTH_SOCK ; while :; do sleep 1d ; done"&
