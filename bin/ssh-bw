@@ -1,0 +1,49 @@
+#!/bin/bash
+
+DEBUG="0"
+id=""
+
+info()
+{
+    [ "$DEBUG" -gt 0 ] && echo "$@" >> /tmp/ask.log
+}
+
+info called: "$@"
+
+for arg in "$@"
+do
+    case "$arg" in
+    -*)
+        shift
+        ;;
+    *)
+        id="$arg"
+        break
+        ;;
+    esac
+done
+
+info got id=$id
+
+if [ -n "$id" ]
+then
+    info id is not empty
+
+    tmp_f="$(/usr/bin/mktemp)"
+    info got tmp file $tmp_f
+
+    if [ -n "$tmp_f" ]
+    then
+        export SSH_ASKPASS_REQUIRE="prefer"
+        export SSH_ASKPASS="$tmp_f"
+
+        info SSH_ASKPASS = $SSH_ASKPASS
+
+        echo "#!/bin/sh" > "$tmp_f"
+        echo "bw get password "$id"" >> "$tmp_f"
+        /usr/bin/chmod 700 "$tmp_f"
+    fi
+
+    ssh "$@"
+    /bin/rm -f "$tmp_f"
+fi

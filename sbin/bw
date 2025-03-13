@@ -4,7 +4,7 @@ main()
 {
     #DEBUG="1"
     log="/tmp/bw.log"
-
+    args=()
     bw="/usr/local/bin/bw"
     bw_download_link="https://vault.bitwarden.com/download/?app=cli&platform=linux"
     tmp="$( /usr/bin/readlink -f "$HOME/.ssh/tmp" )"
@@ -39,18 +39,22 @@ main()
         # if all we want is to lock the vault, then just do it. Don't unlock first
         if [ "$command" == lock -o "$command" == logout ]
         then
+            info "do command:" "$bw" "$@"
             "$bw" "$@"
 
         elif [ "$command" == unlock ]
         then
             check_and_unlock "$opt"
+            info "do command:" "$bw" "$@"
             "$bw" "$command" --check
 
         elif [ "$command" != login ]
         then
-            check_and_unlock
+            check_and_unlock "$opt"
+            info "do command:" "$bw" "$@"
             "$bw" "$@"
         else
+            info "do command:""$bw"  "$@"
             "$bw" "$@"
         fi
     else
@@ -235,11 +239,16 @@ check_and_unlock()
 
         if "$bw" unlock --check > /dev/null 2>&1
         then
-            info "unlocked by aved key"
+            info "unlocked by saved key"
         else
             info "unlock by saved key failed."
             [ "$check" == "--check" ] || bw_unlock
         fi
+    fi
+
+    if "$bw" unlock --check > /dev/null 2>&1
+    then
+        [ "$check" == "--raw" ] && echo "$BW_SESSION"
     fi
 }
 

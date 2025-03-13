@@ -5,6 +5,22 @@ log="/var/log/wsl-commands.log"
 
 main()
 {
+    system="$(/usr/bin/uname -r)"
+
+    info "system = $system"
+
+    if [[ "$system" =~ .*WSL2 ]]
+    then
+        info "doing WSL2 stuff"
+        echo "search jgi.joyglobalinc.com jmsh-home.com" >> /etc/resolv.conf
+    else
+        info "doing WSL stuff"
+        main_wsl1 "$@"
+    fi
+}
+
+main_wsl1()
+{
     #
     # Get windows user and strip domain part
     #
