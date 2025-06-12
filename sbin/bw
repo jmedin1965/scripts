@@ -125,10 +125,13 @@ info()
 {
     if [ -n "$DEBUG" ]
     then
-        echo "Info:" "$@" > /dev/stderr
-        if [ -n "$log" ]
+        if [ "$DEBUG" -gt 0 ]
         then
-            echo "Info:" "$@" >> "$log"
+            echo "Info:" "$@" > /dev/stderr
+            if [ -n "$log" ]
+            then
+                echo "Info:" "$@" >> "$log"
+            fi
         fi
     fi
 }
