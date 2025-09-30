@@ -1,12 +1,4 @@
 
-export AUTH_SOCK=~/.ssh/ssh-agent.sock
-export AUTH_SOCK_LINK=~/.ssh/ssh-agent-link.sock
-export AUTH_SOCK_D=~/.ssh/ssh-agent.sock.d
-export SSH_AGENT="ssh-agent"
-WIN_SSH_AGENT="/c/Program Files/OpenSSH-Win64/ssh.exe"
-WIN_SSH_KEY=~/.ssh/id_rsa.pub
-WIN_SSH_AUTHORIZED_KEYS_F=~/.ssh/authorized_keys
-
 DEBUG="1"
 msg()
 {
@@ -44,10 +36,27 @@ ctrl_c() {
 # trap ctrl-c and call ctrl_c()
 trap ctrl_c INT
 
+export AUTH_SOCK=~/.ssh/ssh-agent.sock                  # the local ssh agent socket
+export AUTH_SOCK_LINK=~/.ssh/ssh-agent-link.sock        # a link we use to point to a valid auth sock in the AUTH_SOCK_D
+export AUTH_SOCK_D=~/.ssh/ssh-agent.sock.d              # a directory containing links to auth sockets
+export SSH_AGENT="ssh-agent"                            # the linux ssh-agent
+WIN_SSH_AGENT="/c/Program Files/OpenSSH-Win64/ssh.exe"  # the windows/dos ssh client
+WIN_SSH_KEY=~/.ssh/id_rsa.pub                           # the key that windows/dos uses
+WIN_SSH_AUTHORIZED_KEYS_F=~/.ssh/authorized_keys        # Authorised keys file to update
+WSL2="false"
+
+# WSL2 and bitwarden-agent
+[[ "`run_cmd uname -r`" =~ .*WSL2 ]] && WSL2="true"
+
+
 if [ "$1" == logout ]
 then
 	msg "Loggout: SSH_AUTH_SOCK_ORIG=$SSH_AUTH_SOCK_ORIG"
-	if [ -n "$SSH_AUTH_SOCK_ORIG" ]
+	if [ -n "$BW_SSH_AUTH_SOCK" ]
+    then
+		msg "we are using bitwarder-agent socket, do not remove"
+
+	elif [ -n "$SSH_AUTH_SOCK_ORIG" ]
 	then
 		msg "remove SSH_AUTH_SOCK that this session was using $SSH_AUTH_SOCK_ORIG"
 		msg /bin/rm -f "$SSH_AUTH_SOCK_ORIG"
@@ -77,7 +86,8 @@ then
 			fi
 		done
 	fi
-    msg done
+    msg "done"
+    sleep 5
 	exit 0
 fi
 
@@ -86,18 +96,30 @@ export SSH_AUTH_SOCK_ORIG=""
 # Cygwin ssh-agent socket
 if [ "`run_cmd uname -o`" == "Cygwin" ]
 then
+    msg "we are using Cygwin."
     AUTH_SOCK=~/.ssh/ssh-agent-pageant.sock
     SSH_AGENT="/usr/bin/ssh-pageant"
-    msg "we are using Cygwin."
 fi
 
-
 msg "SUDO_USER=$SUDO_USER"
-# WSL2, hack to use openssh to create the ssh-agent tunnel
-if [[ "`run_cmd uname -r`" =~ .*WSL2 ]] 
+msg "USER=$USER"
+msg "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
+# WSL2, much easier now with bitwarder ssh-agent
+if [ "$WSL2" == true ]
 then
     msg "we are using WSL2"
-    export AUTH_SOCK=~/.ssh/ssh-agent-link.sock
+    [ -e ~/.bitwarden-ssh-agent.sock ]                                     && export BW_SSH_AUTH_SOCK=~/.bitwarden-ssh-agent.sock
+    [ -e ~/snap/bitwarden/current/.bitwarden-ssh-agent.sock ]              && export BW_SSH_AUTH_SOCK=~/snap/bitwarden/current/.bitwarden-ssh-agent.sock
+    [ -e ~/.var/app/com.bitwarden.desktop/data/.bitwarden-ssh-agent.sock ] && export BW_SSH_AUTH_SOCK=~/.var/app/com.bitwarden.desktop/data/.bitwarden-ssh-agent.sock
+    export SSH_AUTH_SOCK="$BW_SSH_AUTH_SOCK"
+    msg "BW_SSH_AUTH_SOCK=$BW_SSH_AUTH_SOCK"
+    msg "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
+fi
+
+# WSL2, hack to use openssh to create the ssh-agent tunnel
+if [ "$WSL2" == trueer ]
+then
+    msg "we are using WSL2"
 
     if [ -n "$SUDO_USER" ]
     then
@@ -108,6 +130,12 @@ then
         msg "we have been passed a socket, using this socket."
 
     elif [ -x "$WIN_SSH_AGENT" ]
+    then
+        msg "we are WSL2, use local socket"
+        export SSH_AUTH_SOCK="$AUTH_SOCK"
+        msg "using SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
+
+    elif false
     then
         export SSH_AUTH_SOCK="$AUTH_SOCK"
         ssh-add -l 2>/dev/null >/dev/null   # test if socket is active
@@ -120,8 +148,15 @@ then
             fi
 
             # REF: https://github.com/benpye/wsl-ssh-pageant/issues/33
+            for i in `/usr/bin/hostname -I`
+            do
+                case "$i" in
+                    172.*)  hostIP=$i;;
+                esac
+            done
+            msg "got local host ip address of $hostIP"
             msg "about to start ssh-agent tunel"
-            "$WIN_SSH_AGENT" -o IdentitiesOnly=yes -A -p 2222 ${USER}@`/usr/bin/hostname -I` -t -t bash -c \
+            "$WIN_SSH_AGENT" -o IdentitiesOnly=yes -A -p 2222 ${USER}@$hostIP -t -t bash -c \
                 ": ; ln -sf \"\$SSH_AUTH_SOCK\" $AUTH_SOCK ; while :; do sleep 1d ; done"&
                 #": ; ln -sf \"\$SSH_AUTH_SOCK\" $AUTH_SOCK ; sleep 2d ; echo done"&
                 #': ; ln -sf "$SSH_AUTH_SOCK" ~/.ssh/ssh-agent-link.sock ; sleep infinity ; echo done'&
@@ -133,6 +168,7 @@ then
     else
         msg "err: $WIN_SSH_AGENT: prog does not exist, please install it."
     fi
+    msg "done WSL2 ssh-agent stuff."
 fi
 
 # if we have been pased an SSH_AUTH_SOCK then
@@ -141,6 +177,8 @@ then
     msg "yes, we have SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
     [ -d "$AUTH_SOCK_D" ] || ( /bin/mkdir "$AUTH_SOCK_D"; /bin/chmod 0700 "$AUTH_SOCK_D" )
     msg "SSH_AUTH_SOCK was set to: $SSH_AUTH_SOCK"
+
+    # SSH_AUTH_SOCK is not pointing to the local one if we are running on WSL2
     if [ "$SSH_AUTH_SOCK" != "$AUTH_SOCK" ] # if SSH_AUTH_SOCK is not pointing to the local one then
     then
         msg "SSH_AUTH_SOCK:$SSH_AUTH_SOCK != AUTH_SOCK:$AUTH_SOCK"
@@ -158,7 +196,7 @@ then
                 msg "SSH_AUTH_SOCK == AUTH_SOCK_LINK. We must be uning tmux so do nothing"
                 unset SSH_AUTH_SOCK_ORIG
             else
-                export SSH_AUTH_SOCK_ORIG="$AUTH_SOCK_D/`run_cmd basename "$SSH_AUTH_SOCK"`"
+                export SSH_AUTH_SOCK_ORIG="$AUTH_SOCK_D/SOCK_`run_cmd basename "$SSH_AUTH_SOCK"`"
                 msg "ln -sf $SSH_AUTH_SOCK $SSH_AUTH_SOCK_ORIG"
                 [ -e "$SSH_AUTH_SOCK_ORIG" ] && /bin/rm -f "$SSH_AUTH_SOCK_ORIG"
                 ln -sf "$SSH_AUTH_SOCK" "$SSH_AUTH_SOCK_ORIG"
@@ -180,6 +218,10 @@ then
     SUDO_USER_HOME="`/usr/bin/getent passwd $SUDO_USER | /usr/bin/cut -f 6 -d:`"
     SUDO_AUTH_SOCK=`echo $AUTH_SOCK | /usr/bin/sed "s,^$HOME,$SUDO_USER_HOME,g"`
     SUDO_AUTH_SOCK_LINK=`echo $AUTH_SOCK_LINK | /usr/bin/sed "s,^$HOME,$SUDO_USER_HOME,g"`
+
+    msg "SUDO_USER_HOME=$SUDO_USER_HOME"
+    msg "SUDO_AUTH_SOCK=$SUDO_AUTH_SOCK"
+    msg "SUDO_AUTH_SOCK_LINK=$SUDO_AUTH_SOCK_LINK"
 
     if [ -e "$SUDO_AUTH_SOCK" ]
     then
@@ -226,18 +268,23 @@ else
     msg "SSH_AUTH_SOCK not set, setting to: $SSH_AUTH_SOCK"
 fi
 
-# ok, now we should be pointing to the right socket file
-# lets check if it is active
-msg "checking SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
-ssh-add -l 2>/dev/null >/dev/null   # test if socket is active
-if [ $? -ge 2 ]
+if [ "$WSL2" == "false" ]
 then
-    msg "agent not active, activating agent now."
-    # not active, lets start ssh-agent then
-    eval `$SSH_AGENT -a "$SSH_AUTH_SOCK"` || /bin/true
-    msg "$SSH_AGENT: started on: $SSH_AUTH_SOCK"
+    # ok, now we should be pointing to the right socket file
+    # lets check if it is active
+    msg "checking SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
+    ssh-add -l 2>/dev/null >/dev/null   # test if socket is active
+    if [ $? -ge 2 ]
+    then
+        msg "agent not active, activating agent now."
+        # not active, lets start ssh-agent then
+        eval `$SSH_AGENT -a "$SSH_AUTH_SOCK"` || /bin/true
+        msg "$SSH_AGENT: started on: $SSH_AUTH_SOCK"
+    else
+        msg "agent already active, nothing to be done."
+    fi
 else
-    msg "agent already active, nothing to be done."
+    msg "We are running on WSL2, just use local socket always"
 fi
 
 unset AUTH_SOCK
@@ -245,6 +292,7 @@ unset AUTH_SOCK_LINK
 unset UTH_SOCK_D
 unset SSH_AGENT
 
+# add logout function to logout script
 if [ -e "/etc/profile.d/ssh-agent.sh" ]
 then
     if [ ! -e ~/.bash_logout ] || [ "`run_cmd fgrep -c "/bin/bash /etc/profile.d/ssh-agent.sh logout" ~/.bash_logout`" == 0 ]

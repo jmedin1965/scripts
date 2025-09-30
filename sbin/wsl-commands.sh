@@ -44,7 +44,7 @@ main_wsl1()
 
     #start services
     /usr/sbin/service cron start
-    /usr/sbin/service ssh start
+    #/usr/sbin/service ssh start
 
     #
     # A temp folder mounter as a tmpfs ram disk
