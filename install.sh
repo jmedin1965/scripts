@@ -73,7 +73,7 @@ fi
 # do platform specific stuff
 ID=""
 VERSION=""
-[ -e /etc/os-release ] && source /etc/os-release
+[ -e /etc/os-release ] && . /etc/os-release
 [ -e /etc/version ] && ID=`cat /etc/platform`
 [ -e /etc/version ] && VERSION=`cat /etc/version`
 

@@ -55,6 +55,7 @@ main()
 
     local opt
     local opt_cron=""
+    local opt_force=""
 
     local info=""
 
@@ -62,6 +63,11 @@ main()
     do
         case "$opt" in
             cron)   opt_cron="$opt";;
+            force)  opt_force="$opt";;
+            help)
+                echo "Usage: $(basename "$0") [cron|force|help]"
+                exit 0
+                ;;
         esac
     done
 
@@ -90,7 +96,7 @@ main()
         fi
     done
 
-    if [ "$warn" == yes ] 
+    if [ "$warn" == yes ] || [ -n "$opt_force" ]
     then
         ilo_cmd 'fan pid 11 sp 6000'
         ilo_cmd 'fan pid 31 sp 5300'
@@ -98,8 +104,13 @@ main()
         ilo_cmd 'fan pid 42 lo 10000'
         ilo_cmd 'fan pid 46 sp 4400'
         ilo_cmd 'fan pid 49 sp 6000'
-        ilo_cmd 'fan pid 50 sp 3800'
-        echo "Warning: Fan speed greater that $fan_warn $scale, setting fan speed."
+#        ilo_cmd 'fan pid 50 sp 3800'
+        if [ -n "$opt_force" ]
+        then
+            echo "Warning: force option passed, setting fan speed."
+        else
+            echo "Warning: Fan speed greater that $fan_warn $scale, setting fan speed."
+        fi
         EV=$((EV + 1))
     fi
 
