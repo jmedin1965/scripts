@@ -260,6 +260,9 @@ then
 fi
 
 echo
-ssh-add -l
-echo
+if [ "$WSL2" == "false" ]
+then
+    ssh-add -l
+    echo
+fi
 
