@@ -32,7 +32,6 @@
 # The Authorized SSH Keys table is updated to show the hash of the SSH public key associated with the user account.
 #
 
-host="admin@10.10.1.33"
 host="admin@192.168.10.33"
 
 ssh_opts=(
@@ -40,90 +39,344 @@ ssh_opts=(
         "-oConnectTimeout=5"
     )
 
-# warn if fan percent is thi value or higher
-fan_warn="57"
+# apply fan patches if fan speed in higher than this
+fan_warn="60"
+#
+# Unless the HDD temp is this value or higher.
+# If it is, reset the ilo so that fan speed rises to cool the system
+HDD_warn="59"
+#
+# But if the fan speed is already this high, then do not reset
+HDD_do_not_reset_if_speed_greated_than="70"
+#
 
 declare -A ilo_data
 
 EV="0"
 
+opt_cron=""
+opt_force=""
+opt_reset=""
+opt_print=""
+opt_report_only=""
+
+reset_done=""
+fans_done=""
+
 main()
 {
     local val
     local scale
-    local warn="no"
 
-    local opt
-    local opt_cron=""
-    local opt_force=""
 
-    local info=""
-
-    for opt in "$@"
-    do
-        case "$opt" in
-            cron)   opt_cron="$opt";;
-            force)  opt_force="$opt";;
-            help)
-                echo "Usage: $(basename "$0") [cron|force|help]"
-                exit 0
-                ;;
-        esac
-    done
+    process_opts "$@"
 
     get_values
+    sleep 2
 
-    echo
+    if [ -n "$opt_print" ]
+    then
+        for key in "${!ilo_data[@]}"; do
+            echo "$key = ${ilo_data[$key]}"
+        done
+        exit 0
+    fi
+
+
+    ##########
+    #
+    # Check HDD Temperature
+    #
+    info "$(get_val "/system1/sensor12" DeviceID -= CurrentReading RateUnits -: -HealthState HealthState -: -OperationalStatus OperationalStatus)"
+    DeviceID="$(get_val "/system1/sensor12" DeviceID)"
+    temperature="$(get_val "/system1/sensor12" CurrentReading)"
+    scale="$(get_val "/system1/sensor12" RateUnits)"
+    HealthState="$(get_val "/system1/sensor12" HealthState)"
+    OperationalStatus="$(get_val "/system1/sensor12" OperationalStatus)"
+
+    if [ "$HealthState" != "Ok" ]
+    then
+        warn "$DeviceID HealthState is $HealthState"
+    fi
+
+    if [ "$OperationalStatus" != "Ok" ]
+    then
+        warn "$DeviceID OperationalStatus is $OperationalStatus"
+    fi
+
+    if [ "$temperature" -ge "$HDD_warn" ]
+    then
+         warn "$DeviceID temperature greater than $((HDD_warn - 1)) ${scale}."
+    fi
+    #
+    ##########
+
+
+    ##########
+    #
+    # check fan speed and status
+    #
+    fan_speed_max="0"
     for fan in 1 2 3 4 5 6 7 8
     do
-        val="${ilo_data[/system1/fan$fan/DesiredSpeed]}"
+        speed="$(get_val "/system1/fan1" 0 DesiredSpeed)"
+        scale="$(get_val "/system1/fan1" 1 DesiredSpeed)"
+        HealthState="$(get_val "/system1/fan1" HealthState)"
+        OperationalStatus="$(get_val "/system1/fan1" OperationalStatus)"
 
-        if [ -n "$val" ]
+        if [ "$speed" -gt "$fan_speed_max" ]
         then
-            scale="$(set -- $val; echo $2)"
-            val="$(set -- $val; echo $1)"
-            info="${ilo_data[/system1/fan$fan/DeviceID]}: ${ilo_data[/system1/fan$fan/OperationalStatus]}: $val $scale"
-            if [ "$val" -ge "$fan_warn" ]
+            fan_speed_max="$speed"
+        fi
+
+        if [ -n "$speed" ]
+        then
+            info "$(get_val "/system1/fan$fan" DeviceID -= DesiredSpeed -: -HealthState HealthState -: -OperationalStatus OperationalStatus)"
+            if [ "$speed" -ge "$fan_warn" ]
             then
-                warn="yes"
-                echo "$info"
-            else
-                if [ -z "$opt_cron" ]
-                then
-                    echo "$info"
-                fi
+                warn "Fan$fan speed greater than $((fan_warn - 1)) ${scale}."
             fi
+        else
+            warn "Unable to get fan $fan speed"
+        fi
+        
+        if [ "$HealthState" != "Ok" ]
+        then
+            warn "Fan$fan HealthState is $HealthState"
+        fi
+
+        if [ "$OperationalStatus" != "Ok" ]
+        then
+            warn "Fan$fan OperationalStatus is $OperationalStatus"
         fi
     done
+    #
+    ##########
 
-    if [ "$warn" == yes ] || [ -n "$opt_force" ]
+    ##########
+    #
+    # Check reset Option
+    #
+    if [ -n "$opt_reset" ]
     then
+        cmd_reset
+        opt_report_only="opt_reset"
+    fi
+    #
+    ##########
+
+    ##########
+    #
+    # Check force Option
+    #
+    if [ -n "$opt_force" ]
+    then
+        cmd_set_fan_speed
+        opt_report_only="opt_force"
+    fi
+    #
+    ##########
+
+    ##########
+    #
+    # Do HDD Temperature and fan speed
+    #
+    if [ "$temperature" -ge "$HDD_warn" ]
+    then
+        if [ "${fan_speed_max}" -gt "$HDD_do_not_reset_if_speed_greated_than" ]
+        then
+            warn "Fan speed is ${fan_speed_max}, which is greater than ${HDD_do_not_reset_if_speed_greated_than}, so not reseting"
+        else
+            cmd_reset
+        fi
+
+    elif [ -n "$warn_msg" ]
+    then
+        cmd_set_fan_speed
+    fi
+    #
+    ##########
+
+    if [ -n "$warn_msg" ] || [ -z "$opt_cron" ]
+    then
+        echo "$info_msg"
+        echo "$warn_msg"
+    fi
+
+    return $EV
+}
+
+
+cmd_set_fan_speed()
+{
+    if [ "$opt_report_only" == "opt_reset" ]
+    then
+        warn "we have alreaqdy reset, not setting fan speeds."
+
+    elif [ -n "$fans_done=" ]
+    then
+        warn "fans done already, not resetting ilo."
+
+    elif [ -n "$reset_done" ]
+    then
+        warn "reset done already, not setting fan speed."
+    else
+        warn "Setting fan speeds."
         ilo_cmd 'fan pid 11 sp 6000'
         ilo_cmd 'fan pid 31 sp 5300'
         ilo_cmd 'fan pid 40 sp 4700'
         ilo_cmd 'fan pid 42 lo 10000'
         ilo_cmd 'fan pid 46 sp 4400'
         ilo_cmd 'fan pid 49 sp 6000'
-#        ilo_cmd 'fan pid 50 sp 3800'
-        if [ -n "$opt_force" ]
-        then
-            echo "Warning: force option passed, setting fan speed."
-        else
-            echo "Warning: Fan speed greater that $fan_warn $scale, setting fan speed."
-        fi
-        EV=$((EV + 1))
+        ilo_cmd 'fan pid 50 sp 3800'
+        fans_done="yes"
     fi
+}
 
-    return $EV
+cmd_reset()
+{
+    local wait_time="300"
+
+    if [ -n "$opt_report_only" ]
+    then
+        warn "report_only is set, not resetting ilo."
+
+    elif [ -n "$reset_done" ]
+    then
+        warn "reset done already, not resetting ilo."
+    else
+        warn "reset command passed from command line, reseting"
+        ilo_cmd 'cd /map1' 'reset'
+        warn "Wait $wait_time seconds after reseting"
+        reset_done="yes"
+        sleep $wait_time
+    fi
+}
+
+process_opts()
+{
+    for opt in "$@"
+    do
+        case "$opt" in
+            cron)   opt_cron="$opt";;
+            force)  
+                    opt_force="$opt"
+                    warn "force option passed, setting fan speed."
+                    ;;
+            reset)
+                    opt_reset="$opt"
+                    ;;
+            print)  opt_print="$opt";;
+            help)
+                usage
+                echo "Usage: $(basename "$0") [cron|force|print|help]"
+                exit 0
+                ;;
+            report-only) opt_report_only="$opt";;
+            *)
+                echo "Erron: Unknown command $opt$"
+                echo
+                usage
+                exit 1
+                ;;
+        esac
+    done
+}
+
+usage()
+{
+    echo "Usage: $(basename "$0") [cron|force|print|help]"
+    echo
+    echo "Where command is:"
+    echo "  cron        - Only print on error"
+    echo "  force       - Force setting fan speed"
+    echo "  print       - Printg all ilo4 values"
+    echo "  reset       - Reset ilo4"
+    echo "  report-only - Do not reset or set fan speed"
+    echo "  help        - Print this helpo message"
+}
+
+info_msg=""
+info()
+{
+    info_msg="${info_msg}
+$@"
+}
+
+warn_msg=""
+warn()
+{
+    EV=$((EV + 1))
+    warn_msg="${warn_msg}
+Warning: $@"
+}
+
+
+get_val()
+{
+    [ $# -lt 2 ] && return ""
+
+    # Enable extended globbing
+    shopt -s extglob
+
+    local base="$1"
+    shift
+
+    local index="@"
+    local first=""
+
+    for name in "$@"
+    do
+        case "$name" in
+            ("@")
+                index="@"
+                ;;
+            (-*)
+                echo -n "${first}${name##-}"
+                first=" "
+                ;;
+            (*)
+                if [ -z "${name//[0-9]/}" ]
+                then
+                    index="$name"
+                else
+                    val="${ilo_data[$base/$name]}"
+
+                    read -ra val <<< "${ilo_data[$base/$name]}"
+
+                    if [ "$index" == "@" ]
+                    then
+                        echo -n "${first}${val[@]}"
+                    else
+                        echo -n "${first}${val[$index]}"
+                    fi
+                    first=" "
+                    index="@"
+                fi
+                ;;
+            esac
+    done
+    [ -n "$first" ] && echo
 }
 
 ilo_cmd()
 {
     local str
 
-    str="$(/usr/bin/ssh "${ssh_opts[@]}" $host "$1")"
-    EV=$((EV + $?))
-    str="$( echo "$str" | /usr/bin/grep -v -e '^\s*$' )"
+    (
+        while [ $# != 0 ]
+        do
+            #str="$(/usr/bin/ssh "${ssh_opts[@]}" $host "$1")"
+            #str="$( echo "$str" | /usr/bin/grep -v -e '^\s*$' )"
+            #EV=$((EV + $?))
+
+            echo "$1"
+            shift
+            sleep 3
+        done
+        echo "exit"
+    ) | /usr/bin/ssh "${ssh_opts[@]}" $host 
+
     EV=$((EV + $?))
 }
 
