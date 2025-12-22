@@ -1,0 +1,12 @@
+diff -ur -N a/src/etc/rc.initial b/src/etc/rc.initial
+--- a/src/etc/rc.initial	2025-12-22 16:57:02.808391000 +1100
++++ b/src/etc/rc.initial	2025-12-22 16:54:58.076040000 +1100
+@@ -106,7 +106,7 @@
+ 	/etc/rc.initial.ping
+ 	;;
+ 8)
+-	/bin/tcsh
++	/usr/local/bin/bash
+ 	;;
+ 9)
+ 	/usr/local/sbin/pftop
