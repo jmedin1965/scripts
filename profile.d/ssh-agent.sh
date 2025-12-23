@@ -45,7 +45,8 @@ export BW_SSH_AUTH_SOCK=~/.var/app/com.bitwarden.desktop/data/.bitwarden-ssh-age
 
 # WSL2 and bitwarden-agent
 WSL2="false"
-[[ "`run_cmd uname -r`" =~ .*WSL2 ]] && WSL2="true"
+#[[ "`run_cmd uname -r`" =~ .*WSL2 ]] && WSL2="true"
+[ "`uname -r` | tail -c 5" == WSL2 ] && WSL2="true"
 
 
 if [ "$1" == logout ]
