@@ -1,6 +1,15 @@
 diff -ur -N a/src/etc/rc.initial b/src/etc/rc.initial
 --- a/src/etc/rc.initial	2025-12-22 16:57:02.808391000 +1100
-+++ b/src/etc/rc.initial	2025-12-22 16:54:58.076040000 +1100
++++ b/src/etc/rc.initial	2025-12-23 21:30:42.715537000 +1100
+@@ -82,7 +82,7 @@
+ # see what the user has chosen
+ case ${opmode} in
+ 0)
+-	exit && exit && logout
++	[ -e /root/.bash_logout ] && . /root/.bash_logout &&  exit && exit && logout
+ 	;;
+ 1)
+ 	/etc/rc.initial.setports
 @@ -106,7 +106,7 @@
  	/etc/rc.initial.ping
  	;;

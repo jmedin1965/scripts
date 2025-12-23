@@ -264,12 +264,15 @@ unset AUTH_SOCK_LINK
 unset AUTH_SOCK_D
 unset SSH_AGENT
 
+SCRIPT=""
 # add logout function to logout script
-if [ -e "/etc/profile.d/ssh-agent.sh" ]
+[ -e "/usr/local/scripts/profile.d/ssh-agent.sh" ] && SCRIPT="/usr/local/scripts/profile.d/ssh-agent.sh"
+[ -e "/etc/profile.d/ssh-agent.sh" ] && SCRIPT="/etc/profile.d/ssh-agent.sh"
+if [ -e "$SCRIPT" ]
 then
-    if [ ! -e ~/.bash_logout ] || [ "`run_cmd fgrep -c "/bin/bash /etc/profile.d/ssh-agent.sh logout" ~/.bash_logout`" == 0 ]
+    if [ ! -e ~/.bash_logout ] || [ "`run_cmd fgrep -c "/bin/bash $SCRIPT logout" ~/.bash_logout`" == 0 ]
     then
-        echo "/bin/bash /etc/profile.d/ssh-agent.sh logout" >> ~/.bash_logout
+        echo "/bin/bash SCRIPT logout" >> ~/.bash_logout
         /bin/chmod 0600 ~/.bash_logout
     fi
 fi
