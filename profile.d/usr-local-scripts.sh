@@ -14,7 +14,7 @@ if [ -n "$git_repo_local" ] && ! echo "$PATH" | grep -q "$git_repo_local" ; then
   export PATH="${git_repo_local}/sbin:${git_repo_local}/bin:$PATH"
 fi
 
-# set vim as default editor it it exists
+# set vim as default editor if it exists
 [ -x /usr/local/bin/vim ] && export EDITOR="/usr/local/bin/vim"
 [ -x /usr/bin/vim ]       && export EDITOR="/usr/bin/vim"
 

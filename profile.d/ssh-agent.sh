@@ -216,7 +216,7 @@ then
             msg
             if [ "$SSH_AUTH_SOCK" == "$AUTH_SOCK_LINK" ]
             then
-                msg "    SSH_AUTH_SOCK == AUTH_SOCK_LINK. We must be uning tmux so do nothing"
+                msg "    SSH_AUTH_SOCK == AUTH_SOCK_LINK. We must be using tmux so do nothing"
                 unset SSH_AUTH_SOCK_ORIG
             else
                 export SSH_AUTH_SOCK_ORIG="$AUTH_SOCK_D/SOCK_`run_cmd basename "$SSH_AUTH_SOCK"`"
