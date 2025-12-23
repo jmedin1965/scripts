@@ -4,6 +4,7 @@ export PATH="/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
 
 git_repo_local="/usr/local/scripts"
 git_repo="https://jmedin1965@github.com/jmedin1965/scripts.git"
+git_pushurl="git@github.com:jmedin1965/scripts.git"
 
 # clone the repo if it does not exist, else git pull
 if [ -d "${git_repo_local}/.git" ]
@@ -15,6 +16,8 @@ then
     git pull  > /dev/null
 else
     git clone "$git_repo" "$git_repo_local"
+    cd "$git_repo_local"
+    git remote set-url --push origin "$git_pushurl"
 fi
 
 # add to path
