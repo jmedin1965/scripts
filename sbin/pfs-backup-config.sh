@@ -54,23 +54,17 @@ main()
 		exit 0
 	fi
 
-        # if we are running this script from the /root folder
-        if [ "$script" == "$script_root" ]
-        then
-                msg "$script_root: running from root"
-                mount
-                msg copy from $script
-                /bin/cp -v "$script" "$script_mount"
-
         # if we are running from /mnt
-        elif [ "$script" == "$script_mount" ]
+        if [ "$script" == "$script_mount" ]
         then
                 msg copy script $script
                 /bin/cp -v "$script" "$script_root"
                 exec "$script_root" "$@"
         else
-                msg "running from $script, must be a test so not copying"
+                msg "$script: copy to $script_mount"
                 mount
+                msg copy from $script
+                /bin/cp -v "$script" "$script_mount"
         fi
 
         inst_pkg vim
