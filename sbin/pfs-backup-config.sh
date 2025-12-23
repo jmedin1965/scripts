@@ -16,6 +16,7 @@ main()
         opt_no_unmount="0"
         opt_no_cron="0"
         opt_mount_only="0"
+	hostname="`/bin/hostname -s | /usr/bin/tr '[:upper:]' '[:lower:]'`"
 
         while [ -n "$1" ]
         do
@@ -100,6 +101,15 @@ main()
                 msg unmounting $mount
                 /sbin/umount "$mount"
         fi
+
+	# Generate /root/backup/pfsense.bak.tgz
+	/usr/local/scripts/sbin/pfs-backup.php
+	
+	# now copy to backup shares01
+	echo hostname=$hostname
+	SSH_AUTH_SOCK=""
+	/usr/bin/scp /root/backup/pfsense.bak.tgz "$hostname@shares01:"
+	
 }
 
 msg()
