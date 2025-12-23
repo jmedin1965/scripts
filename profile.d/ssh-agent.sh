@@ -40,13 +40,16 @@ export AUTH_SOCK=~/.ssh/ssh-agent.sock                  # the local ssh agent so
 export AUTH_SOCK_LINK=~/.ssh/ssh-agent-link.sock        # a link we use to point to a valid auth sock in the AUTH_SOCK_D
 export AUTH_SOCK_D=~/.ssh/ssh-agent.sock.d              # a directory containing links to auth sockets
 export SSH_AGENT="ssh-agent"                            # the linux ssh-agent
-export BW_SSH_AUTH_SOCK=~/.ssh/bitwarden-ssh-agent.sock
-export BW_SSH_AUTH_SOCK=~/.var/app/com.bitwarden.desktop/data/.bitwarden-ssh-agent.sock
 
 # WSL2 and bitwarden-agent
 WSL2="false"
 #[[ "`run_cmd uname -r`" =~ .*WSL2 ]] && WSL2="true"
-[ "`uname -r` | tail -c 5" == WSL2 ] && WSL2="true"
+if [ "`uname -r` | tail -c 5" == WSL2 ]
+then
+	WSL2="true"
+	export BW_SSH_AUTH_SOCK=~/.ssh/bitwarden-ssh-agent.sock
+	export BW_SSH_AUTH_SOCK=~/.var/app/com.bitwarden.desktop/data/.bitwarden-ssh-agent.sock
+fi
 
 
 if [ "$1" == logout ]
@@ -61,7 +64,7 @@ then
 		msg "  remove SSH_AUTH_SOCK that this session was using $SSH_AUTH_SOCK_ORIG"
 		msg "  /bin/rm -f $SSH_AUTH_SOCK_ORIG"
         export SSH_AUTH_SOCK=""
-        for SSH_AUTH_SOCK_ORIG in `/bin/ls -c --reverse "$AUTH_SOCK_D"/*`
+        for SSH_AUTH_SOCK_ORIG in `/bin/ls -c -r "$AUTH_SOCK_D"/*`
 		do
 			if [ -S "$SSH_AUTH_SOCK_ORIG" ]
 			then

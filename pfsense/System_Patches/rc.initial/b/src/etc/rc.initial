@@ -82,7 +82,8 @@ echo
 # see what the user has chosen
 case ${opmode} in
 0)
-	[ -e /root/.bash_logout ] && . /root/.bash_logout &&  exit && exit && logout
+	[ -e /root/.bash_logout ] && . /root/.bash_logout
+	exit && exit && logout
 	;;
 1)
 	/etc/rc.initial.setports
