@@ -1,4 +1,7 @@
 
+path="$PATH"
+PATH="/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
+
 DEBUG="1"
 msg()
 {
@@ -8,25 +11,6 @@ msg()
     fi
 }
 
-# did this for FreeBSD/PFsense
-run_cmd()
-{
-    local c=""
-
-    if [ -x "/bin/$1" ]
-    then
-        c="/bin/$1"
-
-    elif [ -x "/usr/bin/$1" ]
-    then
-        c="/usr/bin/$1"
-    else
-        return 1
-    fi
-
-    shift
-    "$c" "$@"
-}
 
 # a function to trap CTRL_C since ssh-add times out or waits forever
 ctrl_c() {
@@ -43,8 +27,7 @@ export SSH_AGENT="ssh-agent"                            # the linux ssh-agent
 
 # WSL2 and bitwarden-agent
 WSL2="false"
-#[[ "`run_cmd uname -r`" =~ .*WSL2 ]] && WSL2="true"
-if [ "`uname -r` | tail -c 5" == WSL2 ]
+if [ "`uname -r | tail -c 5`" == WSL2 ]
 then
 	WSL2="true"
 	export BW_SSH_AUTH_SOCK=~/.ssh/bitwarden-ssh-agent.sock
@@ -98,7 +81,7 @@ fi
 export SSH_AUTH_SOCK_ORIG=""
 
 # Cygwin ssh-agent socket
-if [ "`run_cmd uname -o`" == "Cygwin" ]
+if [ "`uname -o`" == "Cygwin" ]
 then
     msg
     msg " we are using Cygwin."
@@ -219,7 +202,7 @@ then
                 msg "    SSH_AUTH_SOCK == AUTH_SOCK_LINK. We must be using tmux so do nothing"
                 unset SSH_AUTH_SOCK_ORIG
             else
-                export SSH_AUTH_SOCK_ORIG="$AUTH_SOCK_D/SOCK_`run_cmd basename "$SSH_AUTH_SOCK"`"
+                export SSH_AUTH_SOCK_ORIG="$AUTH_SOCK_D/SOCK_`basename "$SSH_AUTH_SOCK"`"
                 msg "    ln -sf $SSH_AUTH_SOCK $SSH_AUTH_SOCK_ORIG"
                 [ -e "$SSH_AUTH_SOCK_ORIG" ] && /bin/rm -f "$SSH_AUTH_SOCK_ORIG"
                 ln -sf "$SSH_AUTH_SOCK" "$SSH_AUTH_SOCK_ORIG"
@@ -273,7 +256,7 @@ SCRIPT=""
 [ -e "/etc/profile.d/ssh-agent.sh" ] && SCRIPT="/etc/profile.d/ssh-agent.sh"
 if [ -e "$SCRIPT" ]
 then
-    if [ ! -e ~/.bash_logout ] || [ "`run_cmd fgrep -c "/bin/bash $SCRIPT logout" ~/.bash_logout`" == 0 ]
+    if [ ! -e ~/.bash_logout ] || [ "`fgrep -c "/bin/bash $SCRIPT logout" ~/.bash_logout`" == 0 ]
     then
         echo "/bin/bash SCRIPT logout" >> ~/.bash_logout
         /bin/chmod 0600 ~/.bash_logout
@@ -286,4 +269,8 @@ then
     ssh-add -l
     echo
 fi
+
+PATH="$path"
+unset SCRIPT
+unset path
 
