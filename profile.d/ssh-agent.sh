@@ -262,6 +262,7 @@ then
         /bin/chmod 0600 ~/.bash_logout
     fi
 fi
+unset SCRIPT
 
 echo
 if [ "$WSL2" == "false" ]
@@ -271,6 +272,5 @@ then
 fi
 
 PATH="$path"
-unset SCRIPT
 unset path
 
