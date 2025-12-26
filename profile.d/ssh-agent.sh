@@ -258,7 +258,7 @@ if [ -e "$SCRIPT" ]
 then
     if [ ! -e ~/.bash_logout ] || [ "`fgrep -c "/bin/bash $SCRIPT logout" ~/.bash_logout`" == 0 ]
     then
-        echo "/bin/bash SCRIPT logout" >> ~/.bash_logout
+        echo "/bin/bash $SCRIPT logout" >> ~/.bash_logout
         /bin/chmod 0600 ~/.bash_logout
     fi
 fi
