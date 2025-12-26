@@ -63,6 +63,7 @@ else
 	sshd_option='Enable'
 fi
 
+
 # display console menu
 echo ""
 echo " 0) Logout (SSH only)                  9) pfTop"
@@ -107,7 +108,15 @@ case ${opmode} in
 	/etc/rc.initial.ping
 	;;
 8)
-	/usr/local/bin/bash
+	if [ -x /usr/local/bin/bash ]
+	then
+		/usr/local/bin/bash
+	elif [ -x /bin/tcsh ]
+	then
+		/bin/tcsh
+	else
+		/bin/sh
+	fi
 	;;
 9)
 	/usr/local/sbin/pftop
