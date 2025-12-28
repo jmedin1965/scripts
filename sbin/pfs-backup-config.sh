@@ -1,92 +1,106 @@
 #!/bin/sh
 
+opt_no_unmount="0"
+opt_mount_only="0"
+
 main()
 {
-        mount="/mnt"
-        script="/root/`basename "$0"`"
-        script_name="$mount/backup-config.sh"
+	path="$PATH"
+	export PATH=/etc:/bin:/sbin:/usr/bin:/usr/sbin
 
-        script_name="backup-config.sh"
-        script_root="/root/$script_name"
-        script_mount="$mount/$script_name"
-        script="`/bin/realpath "$0"`"
+        mount="/mnt"
+        script_root="`realpath "$0"`"
+        script_name="`basename "$0"`"
+	backup_dir="/root/backup"
 
         cron_f="/etc/cron.d/$script_name"
 
-        opt_no_unmount="0"
-        opt_no_cron="0"
-        opt_mount_only="0"
 	hostname="`/bin/hostname -s | /usr/bin/tr '[:upper:]' '[:lower:]'`"
+
+	for arg in "$@"
+	do
+		case "$arg" in
+		-*)
+			case "$arg" in
+			--no-unmount)   opt_no_unmount="1";;
+			--no-umount)    opt_no_unmount="1";;
+			*)
+				usage "$arg: unknown option"
+				;;
+			esac
+			;;
+		*);;
+		esac
+	done
 
         while [ -n "$1" ]
         do
-                case "$1" in
-                --no-unmount)   opt_no_unmount="1";;
-                --no-umount)    opt_no_unmount="1";;
-                --no-cron)      opt_no_cron="1";;
-                --mount-only)   opt_mount_only="1";;
-		backup)		;; # This is the default
-                --format)
-                                format "$2"
-                                shift
-                                ;;
-                *)
-                                echo
-                                echo "Usage: `/usr/bin/basename "$0"` options..."
-                                echo
-                                echo "  --no-umount  - do not unmount $mount."
-                                echo "  --no-cron    - do not install cron script."
-                                echo "  --mount-only - just mount and exit."
-                                echo "  --format dev - format dev and do a backup to this dev. please"
-                                echo "                 NOTE that this dev will be completely cleared."
-                                echo
-                                exit 1
-                                ;;
-                esac
-
+		case "$1" in
+		-*);;
+		*)
+			case "$1" in
+				backup)		backup;;
+				mount)		mount;;
+				cron)		inst_cron;;
+				check-keys)	check_keys;;
+				format)
+					if [ $# -gt 1 ]
+					then
+						format "$2"
+						shift
+					else
+						usage "--format needs and option, dev to be formater."
+					fi
+					;;
+				*)
+					usage "$1: unknown command"
+					;;
+			esac
+			;;
+		esac
                 shift
         done
+}
 
-        if [ "$opt_mount_only" == "1" ]
-	then
-		msg "mount only and exit."
-		mount
-		exit 0
-	fi
-
-        # if we are running from /mnt
-        if [ "$script" == "$script_mount" ]
-        then
-                msg copy script $script
-                /bin/cp -v "$script" "$script_root"
-                exec "$script_root" "$@"
-        else
-                msg "$script: copy to $script_mount"
-                mount
-                msg copy from $script
-                /bin/cp -v "$script" "$script_mount"
-        fi
-
+backup()
+{
         inst_pkg vim
         inst_pkg qemu-guest-agent
         inst_pkg git
-        inst_cron
+	inst_pkg pfSense-pkg-Backup
+	inst_pkg rsync
 
-        copy "/conf"
-        copy /var/db/rrd
+	mount
 
-        if [ -e /etc/rc.conf.local ]
-        then
-                copy /etc/rc.conf.local
+	dest="$mount"
+	dest="/root/backup/test"
+	php_backup_script="/usr/local/www/packages/backup/backup.php"
 
-        elif [ -e "$mount/etc/rc.conf.local" ]
-        then
-                msg "restoring $mount/etc/rc.conf.local from backup"
-                /bin/cp "$mount/etc/rc.conf.local" /etc/rc.conf.local
-                /bin/chmod 640 /etc/rc.conf.local
-        fi
+        copy "/conf/config.xml"
+        copy "/conf/backup"
 
-        copy_check /etc/ssh/ssh_host_*
+	/usr/local/bin/php $php_backup_script | (
+		while read status data
+		do
+			case "$status" in
+			created:)
+				echo created $data
+				[ -d "$mount/backup" ] || mkdir "$mount/backup"
+				cp "$data" "$mount/backup"
+				
+				# now copy to backup shares01
+				echo hostname=$hostname
+				SSH_AUTH_SOCK=""
+				/usr/bin/scp "$data" "$hostname@shares01:"
+				;;
+			error:)
+				echo "got an error: $data"
+				;;
+			esac
+		done
+	)
+
+        #copy_check /etc/ssh/ssh_host_*
 
         if [ "$opt_no_unmount" == 1 ]
         then
@@ -96,14 +110,37 @@ main()
                 /sbin/umount "$mount"
         fi
 
-	# Generate /root/backup/pfsense.bak.tgz
-	/usr/local/scripts/sbin/pfs-backup.php
-	
-	# now copy to backup shares01
-	echo hostname=$hostname
-	SSH_AUTH_SOCK=""
-	/usr/bin/scp /root/backup/pfsense.bak.tgz "$hostname@shares01:"
-	
+	PATH="$path"
+}
+
+usage()
+{
+	(
+	if [ $# != 0 ]
+	then
+		echo
+		while [ $# != 0 ]
+		do
+			echo "$1"
+			shift
+		done
+	fi
+
+	echo "Usage: $script_name options... commands..."
+	echo
+	echo "options"
+	echo "  --no-unmount - do not unmount $mount."
+	echo "  --no-umount  - do not unmount $mount."
+	echo "  --format dev - format dev."
+	echo "                 NOTE: This dev will be completely cleared."
+	echo "commands"
+	echo "  backup     - perform a backup, and install cron"
+	echo "  mount      - just mount and exit."
+	echo "  check-keys - check host ssh keys and compare with backup file"
+	echo "  cron       - add cron to do regular backups"
+	echo
+	) > /dev/stderr
+	exit 1
 }
 
 msg()
@@ -118,7 +155,7 @@ format()
 	then
                 msg "  $1: need to specify a device to format"
 
-	elif [ ! -b "$1" ]
+	elif [ ! -c "$1" ]
         then
                 msg "  $1: device does exist"
         else
@@ -133,7 +170,7 @@ format()
 		/sbin/gpart create -s mbr $dev
 
 		# FILL THE MSDOS PARTITION
-		/sbin/gpart add -t \!12 dev
+		/sbin/gpart add -t \!12 $dev
 
 		# FORMAT IT MSDOS STYLE (fat32)
                 /sbin/newfs_msdos -F16 "${1}s1"
@@ -215,23 +252,27 @@ inst_pkg()
 
 inst_cron()
 {
-        if [ "$opt_no_cron" == 1 ]
-        then
-                msg "--no_-cron : skip install cron"
-        else
-                msg "adding skip install cron"
+	msg "adding cron"
 
-                echo "" > "$cron_f"
-                echo "SHELL=/bin/sh" >> "$cron_f"
-                echo "PATH=/etc:/bin:/sbin:/usr/bin:/usr/sbin" >> "$cron_f"
-                echo "" >> "$cron_f"
-                echo "*/10 * * * * root $script_root" >> "$cron_f"
-        fi
+	(
+	echo "#"
+	echo "# added by $script_root"
+	echo "# WARNING: Do not edit this file, your changes will be lost."
+	echo "#"
+	echo 
+	echo "SHELL=/bin/sh"
+	echo "PATH=/etc:/bin:/sbin:/usr/bin:/usr/sbin"
+	echo ""
+	echo "*/10 * * * * root $script_root"
+	) > "$cron_f"
 }
 
 copy()
 {
         local d
+
+	local cmd="/usr/local/bin/rsync -av --delete --exclude $backup_dir/"
+	local cmd="/usr/local/bin/rsync -rt -v --delete"
 
         while [ -n "$1" ]
         do
@@ -247,9 +288,14 @@ copy()
                         /bin/mkdir -p "$d"
                 fi
 
-                [ -d "$1" ] && d="`/usr/bin/dirname "$d"`"
-
-                /bin/cp -vr "$1" "$d"
+                if [ -d "$1" ]
+		then
+			$cmd "$1/" "$mount$1/"
+			echo $cmd "$1/" "$mount$1/"
+		else
+			$cmd "$1" "$mount$1"
+			echo $cmd "$1" "$mount$1"
+		fi
 
                 shift
         done
@@ -322,7 +368,7 @@ mount()
                         name="$c"
                         type=""
 
-                elif [ "$a" == "type:" -a "$b" == fat32 ]
+                elif [ "$a" == "type:" ] && [ "$b" == fat32 -o "$b" == fat32lba  ]
                 then
                         type="$b"
                         msg /sbin/mount -t msdosfs "/dev/$name" "$mount"
@@ -343,3 +389,4 @@ mount()
 }
 
 main "$@"
+

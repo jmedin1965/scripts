@@ -1,0 +1,169 @@
+diff -ur -N a/src/usr/local/www/packages/backup/backup.php b/src/usr/local/www/packages/backup/backup.php
+--- a/src/usr/local/www/packages/backup/backup.php	2025-12-28 16:39:23.060309000 +1100
++++ b/src/usr/local/www/packages/backup/backup.php	2025-12-29 00:45:51.986418000 +1100
+@@ -19,24 +19,114 @@
+  * See the License for the specific language governing permissions and
+  * limitations under the License.
+  */
+-require_once("guiconfig.inc");
+-require_once("/usr/local/pkg/backup.inc");
+ 
++function send_error( $str )
++{
++	global $argv_0;
++
++	file_notice(3, "error: $argv_0: $str");
++}
++
++function do_backup ( $file )
++{
++	global $a_backup, $called_from_comand_line, $backup_dir;
++
++	/* assume no... */
++	$has_backup = false;
++	if (count($a_backup) > 0) {
++		/* Do NOT remove the trailing space after / from $backup_cmd below!!! */
++		$backup_cmd = "/usr/bin/tar --exclude {$backup_dir} --create --verbose --gzip --file {$file} --directory / ";
++
++		if ( $called_from_comand_line ) {
++			print "exclude: $backup_dir\n";
++		}
++		foreach ($a_backup as $ent) {
++			if ($ent['enabled'] == "true") {
++				/* make all paths start with / */
++				if( $ent['path'][0] != '/' ) {
++					$ent['path'] = '/' . $ent['path'];
++				}
++				$backup_cmd .= escapeshellarg($ent['path']) . ' ';
++				if ( $called_from_comand_line ) {
++					print "include: " . $ent['path'] . "\n";
++					if( $ent['path'][0] != '/' ) {
++						print "first: = no\n";
++					}
++				}
++			}
++			$has_backup = true;
++		}
++
++		$backup_cmd .= " 2>&1 ";
++
++		/*
++		exec($backup_cmd, $out, $rc);
++		$has_backup = ($has_backup && ($rc === 0));
++		*/
++	}
++
++	if( $has_backup ) {
++		if ( $called_from_comand_line ) {
++			print "created: $file\n";
++		}
++	}
++	else {
++		foreach( $out as $err ) {
++			if ( $called_from_comand_line ) {
++				print "error: $err\n";
++			}
++			send_error( $err );
++		}
++	}
++
++	return( $has_backup );
++}
++
++require_once "shaper.inc";
++require_once("notices.inc");
+ global $config, $backup_dir, $backup_filename, $backup_path;
+ 
++$called_from_comand_line = 0;
++if (isset($argv)) {
++	$called_from_comand_line = 1;
++}
++
++if ( ! $called_from_comand_line ) {
++	require_once("guiconfig.inc");
++}
++require_once("/usr/local/pkg/backup.inc");
++
++
+ if (!is_array($config['installedpackages']['backup'])) {
+ 	$config['installedpackages']['backup'] = array();
+ }
+ 
+ if (!is_array($config['installedpackages']['backup']['config'])) {
+ 	$config['installedpackages']['backup']['config'] = array();
++	print "is_array 1\n";
+ }
+ 
+ $a_backup = &$config['installedpackages']['backup']['config'];
+ $backup_dir = "/root/backup";
+ $backup_filename = "pfsense.bak.tgz";
+ $backup_path = "{$backup_dir}/{$backup_filename}";
++$argv_0 = __FILE__;
+ 
++if ( $called_from_comand_line ) {
++
++	/*$argv_0 = $argv[0];*/
++	array_shift($argv);
++
++	if ( $argc > 1) {
++		foreach ($argv as $value) {
++			do_backup( $backup_dir . "/" . $value  );
++		}	
++	}
++	else {
++		do_backup ( $backup_path );
++	}
++}
++
+ if ($_GET['act'] == "del") {
+ 	if ($_GET['type'] == 'backup') {
+ 		if ($a_backup[$_GET['id']]) {
+@@ -48,22 +138,11 @@
+ 	}
+ }
+ 
++
+ if ($_GET['a'] == "download") {
+ 	if ($_GET['t'] == "backup") {
+ 		/* assume no... */
+-		$has_backup = false;
+-		if (count($a_backup) > 0) {
+-			/* Do NOT remove the trailing space after / from $backup_cmd below!!! */
+-			$backup_cmd = "/usr/bin/tar --exclude {$backup_path} --create --verbose --gzip --file {$backup_path} --directory / ";
+-			foreach ($a_backup as $ent) {
+-				if ($ent['enabled'] == "true") {
+-					$backup_cmd .= escapeshellarg($ent['path']) . ' ';
+-				}
+-				$has_backup = true;
+-			}
+-			exec($backup_cmd, $out, $rc);
+-			$has_backup = ($has_backup && ($rc === 0));
+-		}
++		$has_backup = do_backup( $backup_path );
+ 
+ 		session_cache_limiter('public');
+ 
+@@ -119,6 +198,9 @@
+ }
+ 
+ $pgtitle = array(gettext("Diagnostics"), gettext("Backup Files and Directories"), gettext("Settings"));
++if ( $called_from_comand_line ) {
++	exit(0);
++}
+ include("head.inc");
+ 
+ if ($_GET["savemsg"]) {
+diff -ur -N a/src/usr/local/www/packages/backup/backup_edit.php b/src/usr/local/www/packages/backup/backup_edit.php
+--- a/src/usr/local/www/packages/backup/backup_edit.php	2023-12-09 03:54:54.000000000 +1100
++++ b/src/usr/local/www/packages/backup/backup_edit.php	2025-12-29 00:45:36.027008000 +1100
+@@ -68,6 +68,10 @@
+ 		$ent = array();
+ 		$ent['name'] = $_POST['name'];
+ 		$ent['path'] = $_POST['path'];
++		/* make all paths start with / */
++		if ( $ent['path'][0] != '/' ) {
++			$ent['path'] = "/" . $ent['path'];
++		}
+ 		$ent['enabled'] = $_POST['enabled'];
+ 		$ent['description'] = $_POST['description'];
+ 
