@@ -138,6 +138,10 @@ function update_backup_status()
 		}
 		$msg .= gettext("The backup command was run from the  {$backup_status['last_backup']['run_from']}. .");
 
+		foreach( $backup_status['last_backup']['Errors'] as $err ) {
+		$msg .= "<br />" . gettext("Error: $err.");
+		}
+
 		print_info_box( $msg, $status );
 	}
 }
@@ -237,7 +241,7 @@ if ($_GET['a'] == "download") {
 if ($_GET['a'] == "other") {
 	if ($_GET['t'] == "restore") {
 		// Extract the tgz file
-		if (file_exists($backup_path)) {
+		if (file_exists($backup_path) && !is_dir($backup_path)) {
 			system("/usr/bin/tar -xpzC / -f {$backup_path}");
 			header("Location: backup.php?savemsg=Backup+has+been+restored.");
 		} else {
@@ -361,7 +365,7 @@ display_top_tabs($tab_array);
 							<i class="fa fa-download icon-embed-btn"></i>
 							Backup
 						</button>
-						<?php	if (file_exists($backup_path)) { ?>
+						<?php	if (file_exists($backup_path) && !is_dir($backup_path)) { ?>
 								<button type="button" class="btn btn-warning" value="Restore" onclick="document.location.href='backup.php?a=other&amp;t=restore';">
 									<i class="fa fa-undo icon-embed-btn"></i>
 									Restore
