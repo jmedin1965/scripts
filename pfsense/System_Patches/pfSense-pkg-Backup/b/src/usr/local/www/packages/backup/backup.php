@@ -19,6 +19,20 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+require_once("shaper.inc");
+#require_once("notices.inc");
+require_once("/usr/local/pkg/backup.inc");
+
+$has_command_line = false;
+if (isset($argv)) {
+	$has_command_line = true;
+}
+else {
+	require_once("guiconfig.inc");
+}
+
+global $config, $backup_dir, $backup_filename, $backup_path;
+
 
 function send_error( $str )
 {
@@ -29,15 +43,26 @@ function send_error( $str )
 
 function do_backup ( $file )
 {
-	global $a_backup, $called_from_comand_line, $backup_dir;
+	global $a_backup, $has_command_line, $backup_dir, $backup_status, $backup_status_path;
+
+	$backup_status['last_backup']['start'] = date('Y-m-d H:i:s');
+	if ( $has_command_line ) {
+		$backup_status['last_backup']['run_from'] = "Command Line";
+	}
+	else {
+		$backup_status['last_backup']['run_from'] = "Web GUI";
+	}
 
 	/* assume no... */
-	$has_backup = false;
+	$backup_status['last_backup']['has_backup'] = false;
+	$backup_status['last_backup']['rc'] = 99;
+	$backup_status['last_backup']['Backup Location Count'] = count($a_backup);
+	$backup_status['last_backup']['Backup Locations'] = array();
 	if (count($a_backup) > 0) {
 		/* Do NOT remove the trailing space after / from $backup_cmd below!!! */
 		$backup_cmd = "/usr/bin/tar --exclude {$backup_dir} --create --verbose --gzip --file {$file} --directory / ";
 
-		if ( $called_from_comand_line ) {
+		if ( $has_command_line ) {
 			print "exclude: $backup_dir\n";
 		}
 		foreach ($a_backup as $ent) {
@@ -47,55 +72,75 @@ function do_backup ( $file )
 					$ent['path'] = '/' . $ent['path'];
 				}
 				$backup_cmd .= escapeshellarg($ent['path']) . ' ';
-				if ( $called_from_comand_line ) {
+				$backup_status['last_backup']['Backup Locations'][] = $ent['path'];
+				if ( $has_command_line ) {
 					print "include: " . $ent['path'] . "\n";
 					if( $ent['path'][0] != '/' ) {
 						print "first: = no\n";
 					}
 				}
 			}
-			$has_backup = true;
+			$backup_status['last_backup']['has_backup'] = true;
 		}
 
-		$backup_cmd .= " 2>&1 ";
+		/* Only interested in stderr */
+		$backup_cmd .= " 2>&1 1>/dev/null";
 
-		/*
 		exec($backup_cmd, $out, $rc);
-		$has_backup = ($has_backup && ($rc === 0));
-		*/
+		$backup_status['last_backup']['has_backup'] = ($backup_status['last_backup']['has_backup'] && ($rc === 0));
+		$backup_status['last_backup']['rc'] = $rc;
 	}
 
-	if( $has_backup ) {
-		if ( $called_from_comand_line ) {
+	$backup_status['last_backup']['Errors'] = array();
+	if( $backup_status['last_backup']['has_backup'] ) {
+		if ( $has_command_line ) {
 			print "created: $file\n";
 		}
+		$backup_status['last_backup']['file'] = "$file";
 	}
 	else {
 		foreach( $out as $err ) {
-			if ( $called_from_comand_line ) {
+			if ( $has_command_line ) {
 				print "error: $err\n";
 			}
+			$backup_status['last_backup']['Errors'][] = $err;
 			send_error( $err );
 		}
 	}
 
-	return( $has_backup );
+	$backup_status['last_backup']['end'] = date('Y-m-d H:i:s');
+	file_put_contents("$backup_status_path",  '<?php return ' . var_export($backup_status, true) . ';' );
+
+	return( $backup_status['last_backup']['has_backup'] );
 }
 
-require_once "shaper.inc";
-require_once("notices.inc");
-global $config, $backup_dir, $backup_filename, $backup_path;
+function update_backup_status()
+{
+	global $backup_status;
 
-$called_from_comand_line = 0;
-if (isset($argv)) {
-	$called_from_comand_line = 1;
+	if ($backup_status !== false) {
+
+		$msg .= gettext("Last backup started on {$backup_status['last_backup']['start']} ");
+		if ( $backup_status['last_backup']['rc'] == 0 ) {
+			$status = 'success';
+			$msg .= gettext("was successful.") . "<br />";
+		}
+		else {
+			$status = 'danger';
+			$msg .= gettext("failed with error code {$backup_status['last_backup']['rc']}.") . "<br />";
+		}
+		
+		if ( $backup_status['last_backup']['has_backup'] ) {
+			$msg .= gettext("Backup file {$backup_status['last_backup']['file']} was created successful on {$backup_status['last_backup']['end']}.") . "<br />";
+		}
+		else {
+			$msg .= gettext("Failed to create backup file {$backup_status['last_backup']['file']}. .") . "<br />";
+		}
+		$msg .= gettext("The backup command was run from the  {$backup_status['last_backup']['run_from']}. .");
+
+		print_info_box( $msg, $status );
+	}
 }
-
-if ( ! $called_from_comand_line ) {
-	require_once("guiconfig.inc");
-}
-require_once("/usr/local/pkg/backup.inc");
-
 
 if (!is_array($config['installedpackages']['backup'])) {
 	$config['installedpackages']['backup'] = array();
@@ -103,16 +148,17 @@ if (!is_array($config['installedpackages']['backup'])) {
 
 if (!is_array($config['installedpackages']['backup']['config'])) {
 	$config['installedpackages']['backup']['config'] = array();
-	print "is_array 1\n";
 }
 
 $a_backup = &$config['installedpackages']['backup']['config'];
 $backup_dir = "/root/backup";
 $backup_filename = "pfsense.bak.tgz";
+$backup_status_path = "{$backup_dir}/backup.status.inc";
 $backup_path = "{$backup_dir}/{$backup_filename}";
 $argv_0 = __FILE__;
+$backup_status = include $backup_status_path;
 
-if ( $called_from_comand_line ) {
+if ( $has_command_line ) {
 
 	/*$argv_0 = $argv[0];*/
 	array_shift($argv);
@@ -143,15 +189,31 @@ if ($_GET['a'] == "download") {
 	if ($_GET['t'] == "backup") {
 		/* assume no... */
 		$has_backup = do_backup( $backup_path );
+		update_backup_status();
 
 		session_cache_limiter('public');
 
 		/* bailout if there is nothing to download */
-		if ((!$has_backup
-		    && !file_exists($backup_path))
-			|| !($fd = fopen($backup_path, 'rb'))) {
-				header('Location: backup.php');
-				exit(0);
+		/* 
+			(
+			  if we don't have a backup 
+			  and
+			  (
+			    if the file doesn't exist
+			    or
+			    its a directory
+			  )
+			)
+			or
+			we were not able to open the file
+		*/
+		if (	!$has_backup &&
+			( !file_exists($backup_path) || is_dir($backup_path) )
+			|| !($fd = fopen($backup_path, 'rb'))
+		   ) {
+			send_error( "No backup file exists" );
+			header('Location: backup.php');
+			exit(0);
 		}
 
 		header("Content-Type: application/force-download");
@@ -167,6 +229,7 @@ if ($_GET['a'] == "download") {
 		fpassthru($fd);
 
 		fclose($fd);
+		header('Location: backup.php');
 		exit(0);
 	}
 }
@@ -198,14 +261,42 @@ if (($_POST['submit'] == "Upload") && is_uploaded_file($_FILES['ulfile']['tmp_na
 }
 
 $pgtitle = array(gettext("Diagnostics"), gettext("Backup Files and Directories"), gettext("Settings"));
-if ( $called_from_comand_line ) {
+if ( $has_command_line ) {
 	exit(0);
 }
 include("head.inc");
+update_backup_status();
 
 if ($_GET["savemsg"]) {
 	print_info_box($_GET["savemsg"]);
 }
+
+//print_info_box("a nothing message");
+//print_info_box("a default message", 'default');
+//print_info_box("a info message", 'info');
+//print_info_box("a warning message", 'warning');
+//print_info_box("a sucess message", 'success');
+//print_info_box("a danger message", 'danger');
+//print_info_box("a danger message, chaged button", 'danger', "cross", "cross text");
+
+$is_dirty = True;
+
+if ($_POST['apply']) {
+	// 0 is success
+	// non-zero means there was some problem
+	$retval = 0;
+}
+
+if ($_POST['apply']) {
+	print_apply_result_box($retval);
+	$is_dirty = False;
+}
+
+if ($is_dirty) {
+        print_apply_box(gettext("The firewall rule configuration has been changed.") . "<br />" . gettext("The changes must be applied for them to take effect."));
+}
+
+
 
 $tab_array = array();
 $tab_array[] = array(gettext("Settings"), true, "/packages/backup/backup.php");

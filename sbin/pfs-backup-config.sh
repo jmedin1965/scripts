@@ -79,7 +79,7 @@ backup()
         copy "/conf/config.xml"
         copy "/conf/backup"
 
-	/usr/local/bin/php $php_backup_script | (
+	/usr/local/bin/php -f $php_backup_script | (
 		while read status data
 		do
 			case "$status" in
@@ -95,6 +95,9 @@ backup()
 				;;
 			error:)
 				echo "got an error: $data"
+				;;
+			*)
+				echo "got unknown: $status: $data"
 				;;
 			esac
 		done
