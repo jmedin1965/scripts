@@ -394,6 +394,10 @@ print_info_box("a danger message", 'danger');	// red
 print_info_box("a danger message, chaged button", 'danger', "cross", "cross text");
 */
 
+
+/*
+	A test to get print_apply_box working
+*/
 $is_dirty = true;
 if ($_POST['apply']) {
 	// 0 is success
@@ -407,6 +411,54 @@ if ($_POST['apply']) {
 if ($is_dirty) {
         print_apply_box(gettext("The firewall rule configuration has been changed.") . "<br />" . gettext("The changes must be applied for them to take effect."));
 }
+/*
+REF: https://stackoverflow.com/questions/31559469/how-to-create-a-simple-javascript-timer#:~:text=Sorted%20by:,6714%2017
+
+a countdown timer
+
+see if I can getthis to display in a print_apply_box
+
+*/
+/*
+<!DOCTYPE html>
+<html>
+<body>
+
+<div id="safeTimer">
+<h2>Safe Timer</h2>
+<p id="safeTimerDisplay"></p>
+</div>
+
+<script type="text/javascript">
+var myVar = setInterval(function(){ myTimer() }, 1000);
+var secondlimit = 30;
+
+function myTimer() {
+if(secondlimit == 0)
+{
+    myStopFunction();
+}
+
+document.getElementById("safeTimerDisplay").innerHTML = '00:' + zeroPad(secondlimit,2);
+secondlimit = secondlimit  - 1;
+
+}
+
+function myStopFunction() {
+    clearInterval(myVar);
+}
+
+function zeroPad(num, places) {
+  var zero = places - num.toString().length + 1;
+  return Array(+(zero > 0 && zero)).join("0") + num;
+}
+
+</script>
+
+</body>
+</html>
+
+*/
 
 $tab_array = array();
 $tab_array[] = array(gettext("Settings"), true, "/packages/backup/backup.php");
