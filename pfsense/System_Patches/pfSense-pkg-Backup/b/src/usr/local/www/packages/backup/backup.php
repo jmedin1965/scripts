@@ -45,6 +45,7 @@ function do_backup ( $file )
 {
 	global $a_backup, $has_command_line, $backup_dir, $backup_status, $backup_status_path;
 
+	$backup_status['last_backup'] = array();
 	$backup_status['last_backup']['start'] = date('Y-m-d H:i:s');
 	if ( $has_command_line ) {
 		$backup_status['last_backup']['run_from'] = "Command Line";
@@ -102,14 +103,19 @@ function do_backup ( $file )
 		foreach( $out as $err ) {
 			if ( $has_command_line ) {
 				print "error: $err\n";
+				send_error( $err );
 			}
 			$backup_status['last_backup']['Errors'][] = $err;
-			send_error( $err );
 		}
 	}
 
 	$backup_status['last_backup']['end'] = date('Y-m-d H:i:s');
+
+	// write status to file
 	file_put_contents("$backup_status_path",  '<?php return ' . var_export($backup_status, true) . ';' );
+
+	// update GUI status message
+	update_backup_status();
 
 	return( $backup_status['last_backup']['has_backup'] );
 }
@@ -120,29 +126,85 @@ function update_backup_status()
 
 	if ($backup_status !== false) {
 
-		$msg .= gettext("Last backup started on {$backup_status['last_backup']['start']} ");
+		$msg .= "Last backup started on {$backup_status['last_backup']['start']}";
 		if ( $backup_status['last_backup']['rc'] == 0 ) {
-			$status = 'success';
-			$msg .= gettext("was successful.") . "<br />";
+			info_box_add( $msg . " was successful.", 'success' );
 		}
 		else {
-			$status = 'danger';
-			$msg .= gettext("failed with error code {$backup_status['last_backup']['rc']}.") . "<br />";
+			info_box_add( $msg . " failed with error code {$backup_status['last_backup']['rc']}.", 'danger' );
 		}
 		
 		if ( $backup_status['last_backup']['has_backup'] ) {
-			$msg .= gettext("Backup file {$backup_status['last_backup']['file']} was created successful on {$backup_status['last_backup']['end']}.") . "<br />";
+			info_box_append( "Backup file {$backup_status['last_backup']['file']} was created successful on {$backup_status['last_backup']['end']}." );
 		}
 		else {
-			$msg .= gettext("Failed to create backup file {$backup_status['last_backup']['file']}. .") . "<br />";
+			info_box_append( "Failed to create backup file {$backup_status['last_backup']['file']}." );
 		}
-		$msg .= gettext("The backup command was run from the  {$backup_status['last_backup']['run_from']}. .");
+		info_box_append( "The backup command was run from the {$backup_status['last_backup']['run_from']}.") ;
 
 		foreach( $backup_status['last_backup']['Errors'] as $err ) {
-		$msg .= "<br />" . gettext("Error: $err.");
+			info_box_append( "Error: $err." );
 		}
+	}
+}
 
-		print_info_box( $msg, $status );
+
+function info_box_add( $msg, $type = "" )
+{
+	global $info_box_a;
+
+	$info_box_a[] = array (
+		'msg'  => gettext("$msg"),
+		'type' => "$type"
+	);
+	return( count($info_box_a) - 1 );
+}
+
+function info_box_append( $msg, $index = -1, $type = -1 )
+{
+	global $info_box_a;
+
+	if ( $index == -1 ) {
+		$index = count($info_box_a) - 1;
+	}
+
+	if( isset( $info_box_a[$index]['msg'] ) ) {
+		$info_box_a[$index]['msg'] .= "<br />" . gettext("$msg"); 
+		if( $type != -1 ) {
+			$info_box_a[$index]['type'] = $type;
+		}
+		return( true );
+	}
+	else {
+		return( false );
+	}
+}
+
+function info_box_print()
+{
+	global $info_box_a;
+
+	$count = 0;
+
+	global $_GET;
+	info_box_add( "_GET", "info" );
+	foreach( $_GET as $key => $value ) {
+		info_box_append( "_GET[$key] = $value" );
+	}
+	global $_POST;
+	info_box_add( "_POST", "info" );
+	foreach( $_POST as $key => $value ) {
+		info_box_append( "_GET[$key] = $value" );
+	}
+
+	foreach( $info_box_a as $i ) {
+		$count += 1;
+		if( $i['type'] == "" ) {
+			print_info_box($i['msg']);
+		}
+		else {
+			print_info_box($i['msg'], $i['type']);
+		}
 	}
 }
 
@@ -161,6 +223,7 @@ $backup_status_path = "{$backup_dir}/backup.status.inc";
 $backup_path = "{$backup_dir}/{$backup_filename}";
 $argv_0 = __FILE__;
 $backup_status = include $backup_status_path;
+$info_box_a = [];
 
 if ( $has_command_line ) {
 
@@ -188,12 +251,44 @@ if ($_GET['act'] == "del") {
 	}
 }
 
-
 if ($_GET['a'] == "download") {
 	if ($_GET['t'] == "backup") {
 		/* assume no... */
 		$has_backup = do_backup( $backup_path );
-		update_backup_status();
+
+		/* bailout if there is nothing to download */
+		/* 
+			(
+			  if we don't have a backup 
+			  and
+			  (
+			    if the file doesn't exist
+			    or
+			    its a directory
+			  )
+			)
+			or
+			we were not able to open the file
+		*/
+		if (	!$has_backup &&
+			( !file_exists($backup_path) || is_dir($backup_path) )
+			|| !($fd = fopen($backup_path, 'rb'))
+		   ) {
+			#header('Location: backup.php?savemsg=Error+failed+to+create+backup.');
+			#info_box_add( "{$backup_path}: Failed to create backup.", 'danger' );
+		}
+		else {
+			#header('Location: backup.php?savemsg=Backup+created+successfully.');
+			#info_box_add( "{$backup_path}: Backup created successfully.", 'success' );
+		}
+	}
+}
+
+
+if ($_GET['a'] == "download") {
+	if ($_GET['t'] == "download") {
+		/* assume no... */
+		$has_backup = do_backup( $backup_path );
 
 		session_cache_limiter('public');
 
@@ -268,39 +363,50 @@ $pgtitle = array(gettext("Diagnostics"), gettext("Backup Files and Directories")
 if ( $has_command_line ) {
 	exit(0);
 }
-include("head.inc");
-update_backup_status();
 
+include("head.inc");
+info_box_print();
 if ($_GET["savemsg"]) {
 	print_info_box($_GET["savemsg"]);
 }
 
-//print_info_box("a nothing message");
-//print_info_box("a default message", 'default');
-//print_info_box("a info message", 'info');
-//print_info_box("a warning message", 'warning');
-//print_info_box("a sucess message", 'success');
-//print_info_box("a danger message", 'danger');
-//print_info_box("a danger message, chaged button", 'danger', "cross", "cross text");
+#print_info_box("a warning message", 'warning');
+#print_info_box("a sucess message", 'success');
+#print_info_box("a danger message", 'danger');
+#info_box_add( $msg, $type = "" );
+#info_box_append( $msg, $index = -1 );
 
-$is_dirty = True;
+//print_info_box("$m");
+//$m = "";
+//if ($_GET['a'] == "download") {
+//	$m .= "downloadrrr ";
+//}
+//$m .= "_GET[a] = {$_GET['a']}, _GET[t] = {$_GET['t']}, _POST[submit] = {$_POST['submit']}, _GET[act] = {$_GET['act']}";
 
+
+/*
+print_info_box("a nothing message");		// its a warning
+print_info_box("a default message", 'default');	// black on while
+print_info_box("a info message", 'info');	// blue
+print_info_box("a warning message", 'warning');	// yelow
+print_info_box("a sucess message", 'success');	// green
+print_info_box("a danger message", 'danger');	// red
+print_info_box("a danger message, chaged button", 'danger', "cross", "cross text");
+*/
+
+$is_dirty = true;
 if ($_POST['apply']) {
 	// 0 is success
 	// non-zero means there was some problem
 	$retval = 0;
 }
-
 if ($_POST['apply']) {
 	print_apply_result_box($retval);
-	$is_dirty = False;
+	$is_dirty = false;
 }
-
 if ($is_dirty) {
         print_apply_box(gettext("The firewall rule configuration has been changed.") . "<br />" . gettext("The changes must be applied for them to take effect."));
 }
-
-
 
 $tab_array = array();
 $tab_array[] = array(gettext("Settings"), true, "/packages/backup/backup.php");
@@ -362,10 +468,14 @@ display_top_tabs($tab_array);
 				<tr>
 					<td>
 						<button type='button' class="btn btn-primary" value='Backup' onclick="document.location.href='backup.php?a=download&amp;t=backup';">
-							<i class="fa fa-download icon-embed-btn"></i>
+							<i class="fa fa-plus icon-embed-btn"></i>
 							Backup
 						</button>
 						<?php	if (file_exists($backup_path) && !is_dir($backup_path)) { ?>
+								<button type='button' class="btn btn-primary" value='Download' onclick="document.location.href='backup.php?a=download&amp;t=download';">
+									<i class="fa fa-download icon-embed-btn"></i>
+									Download
+								</button>
 								<button type="button" class="btn btn-warning" value="Restore" onclick="document.location.href='backup.php?a=other&amp;t=restore';">
 									<i class="fa fa-undo icon-embed-btn"></i>
 									Restore
