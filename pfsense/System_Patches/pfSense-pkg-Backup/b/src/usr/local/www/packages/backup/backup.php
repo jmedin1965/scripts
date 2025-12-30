@@ -365,10 +365,21 @@ if ( $has_command_line ) {
 }
 
 include("head.inc");
+
+// Define default Alerts Tab href link (Top row)
+#$get_req = pfb_alerts_default_page();
+
 info_box_print();
-if ($_GET["savemsg"]) {
-	print_info_box($_GET["savemsg"]);
+
+if (isset($savemsg)) {
+        print_info_box($savemsg);
 }
+
+if (isset($_REQUEST['savemsg'])) {
+        $savemsg = htmlspecialchars($_REQUEST['savemsg']);
+        print_info_box($savemsg);
+}
+
 
 #print_info_box("a warning message", 'warning');
 #print_info_box("a sucess message", 'success');

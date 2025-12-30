@@ -1,13 +1,14 @@
 #!/bin/sh
 
-# Add /usr/local/scripts to path
-
 git_repo_local="/usr/local/scripts"
 
-# make sure  /usr/local/{bin,sbin} is there too
-#if ! echo $PATH | /bin/grep -q /usr/local/bin ; then
-#  export PATH=/usr/local/sbin:/usr/local/bin:$PATH
-#fi
+# Add /usr/local /usr/local/scripts to path
+for p in /usr/local $git_repo_local
+do
+	if ! echo $PATH | /usr/bin/grep -q $p/bin ; then
+	  export PATH=$p/sbin:$p/bin:$PATH
+	fi
+done
 
 # add to path
 if [ -n "$git_repo_local" ] && ! echo "$PATH" | grep -q "$git_repo_local" ; then
