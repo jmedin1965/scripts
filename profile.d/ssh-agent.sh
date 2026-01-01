@@ -74,6 +74,10 @@ then
 		done
 	fi
     msg " done $?"
+
+    # release trap
+    trap - INT
+
     sleep 1
 	exit 0
 fi
@@ -273,4 +277,7 @@ fi
 
 PATH="$path"
 unset path
+
+# release trap
+trap - INT
 
