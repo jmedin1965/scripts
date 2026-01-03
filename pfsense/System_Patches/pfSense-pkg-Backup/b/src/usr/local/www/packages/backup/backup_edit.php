@@ -19,18 +19,11 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-require_once("guiconfig.inc");
 require_once("/usr/local/pkg/backup.inc");
 
-if (!is_array($config['installedpackages']['backup'])) {
-	$config['installedpackages']['backup'] = array();
-}
-
-if (!is_array($config['installedpackages']['backup']['config'])) {
-	$config['installedpackages']['backup']['config'] = array();
-}
 
 $a_backup = &$config['installedpackages']['backup']['config'];
+
 
 $id = $_GET['id'];
 if (isset($_POST['id'])) {
@@ -62,31 +55,48 @@ if ($_POST) {
 	/* TODO - This needs some basic input validation for the path at least */
 	unset($input_errors);
 	$pconfig = $_POST;
+	$savemsg = "";
+	$savemsgtype = "sucess";
+
+
+	$ent = array();
+	$ent['name'] = $_POST['name'];
+	$ent['path'] = $_POST['path'];
+	$ent['enabled'] = $_POST['enabled'];
+	$ent['description'] = $_POST['description'];
+
+	if ( $ent['path'] == "" ) {
+		$savemsg .= gettext('Must specify path at least.') . ' <br /> ';
+		$savemsgtype = "alert";
+		$input_errors = true;
+	}
+	/* make all paths start with / */
+	elseif ( $ent['path'][0] != '/' ) {
+		$ent['path'] = "/" . $ent['path'];
+		$savemsg .= gettext('Added leading / to path.') . ' <br /> ';
+	}
+	// Check if path exists
+	if( count( glob( $ent['path'] ) ) == 0 ) {
+		$savemsg = "{$ent['path']}: Path does not exist.";
+		$savemsgtype = "alert";
+		$input_errors = true;
+	}
 
 	if (!$input_errors) {
-
-		$ent = array();
-		$ent['name'] = $_POST['name'];
-		$ent['path'] = $_POST['path'];
-		/* make all paths start with / */
-		if ( $ent['path'][0] != '/' ) {
-			$ent['path'] = "/" . $ent['path'];
-		}
-		$ent['enabled'] = $_POST['enabled'];
-		$ent['description'] = $_POST['description'];
-
 		if (isset($id) && $a_backup[$id]) {
 			// update
 			$a_backup[$id] = $ent;
+			$savemsg .= gettext('Backup location updated sucessfully.') . '<br /> ';
 		} else {
 			// add
 			$a_backup[] = $ent;
+			$savemsg .= gettext('Backup location added sucessfully.') . '<br /> ';
 		}
 
 		write_config("Backup: Settings saved");
 		backup_sync_package();
 
-		header("Location: backup.php");
+		header("Location: backup.php?savemsg={$savemsg}");
 		exit;
 	}
 }

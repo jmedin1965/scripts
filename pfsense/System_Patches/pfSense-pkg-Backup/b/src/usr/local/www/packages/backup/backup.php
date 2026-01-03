@@ -19,221 +19,24 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-require_once("shaper.inc");
-#require_once("notices.inc");
 require_once("/usr/local/pkg/backup.inc");
 
-$has_command_line = false;
-if (isset($argv)) {
-	$has_command_line = true;
-}
-else {
-	require_once("guiconfig.inc");
-}
-
-global $config, $backup_dir, $backup_filename, $backup_path;
-
-
-function send_error( $str )
-{
-	global $argv_0;
-
-	file_notice(3, "error: $argv_0: $str");
-}
-
-function do_backup ( $file )
-{
-	global $a_backup, $has_command_line, $backup_dir, $backup_status, $backup_status_path;
-
-	$backup_status['last_backup'] = array();
-	$backup_status['last_backup']['start'] = date('Y-m-d H:i:s');
-	if ( $has_command_line ) {
-		$backup_status['last_backup']['run_from'] = "Command Line";
-	}
-	else {
-		$backup_status['last_backup']['run_from'] = "Web GUI";
-	}
-
-	/* assume no... */
-	$backup_status['last_backup']['has_backup'] = false;
-	$backup_status['last_backup']['rc'] = 99;
-	$backup_status['last_backup']['Backup Location Count'] = count($a_backup);
-	$backup_status['last_backup']['Backup Locations'] = array();
-	if (count($a_backup) > 0) {
-		/* Do NOT remove the trailing space after / from $backup_cmd below!!! */
-		$backup_cmd = "/usr/bin/tar --exclude {$backup_dir} --create --verbose --gzip --file {$file} --directory / ";
-
-		if ( $has_command_line ) {
-			print "exclude: $backup_dir\n";
-		}
-		foreach ($a_backup as $ent) {
-			if ($ent['enabled'] == "true") {
-				/* make all paths start with / */
-				if( $ent['path'][0] != '/' ) {
-					$ent['path'] = '/' . $ent['path'];
-				}
-				$backup_cmd .= escapeshellarg($ent['path']) . ' ';
-				$backup_status['last_backup']['Backup Locations'][] = $ent['path'];
-				if ( $has_command_line ) {
-					print "include: " . $ent['path'] . "\n";
-					if( $ent['path'][0] != '/' ) {
-						print "first: = no\n";
-					}
-				}
-			}
-			$backup_status['last_backup']['has_backup'] = true;
-		}
-
-		/* Only interested in stderr */
-		$backup_cmd .= " 2>&1 1>/dev/null";
-
-		exec($backup_cmd, $out, $rc);
-		$backup_status['last_backup']['has_backup'] = ($backup_status['last_backup']['has_backup'] && ($rc === 0));
-		$backup_status['last_backup']['rc'] = $rc;
-	}
-
-	$backup_status['last_backup']['Errors'] = array();
-	if( $backup_status['last_backup']['has_backup'] ) {
-		if ( $has_command_line ) {
-			print "created: $file\n";
-		}
-		$backup_status['last_backup']['file'] = "$file";
-	}
-	else {
-		foreach( $out as $err ) {
-			if ( $has_command_line ) {
-				print "error: $err\n";
-				send_error( $err );
-			}
-			$backup_status['last_backup']['Errors'][] = $err;
-		}
-	}
-
-	$backup_status['last_backup']['end'] = date('Y-m-d H:i:s');
-
-	// write status to file
-	file_put_contents("$backup_status_path",  '<?php return ' . var_export($backup_status, true) . ';' );
-
-	// update GUI status message
-	update_backup_status();
-
-	return( $backup_status['last_backup']['has_backup'] );
-}
-
-function update_backup_status()
-{
-	global $backup_status;
-
-	if ($backup_status !== false) {
-
-		$msg .= "Last backup started on {$backup_status['last_backup']['start']}";
-		if ( $backup_status['last_backup']['rc'] == 0 ) {
-			info_box_add( $msg . " was successful.", 'success' );
-		}
-		else {
-			info_box_add( $msg . " failed with error code {$backup_status['last_backup']['rc']}.", 'danger' );
-		}
-		
-		if ( $backup_status['last_backup']['has_backup'] ) {
-			info_box_append( "Backup file {$backup_status['last_backup']['file']} was created successful on {$backup_status['last_backup']['end']}." );
-		}
-		else {
-			info_box_append( "Failed to create backup file {$backup_status['last_backup']['file']}." );
-		}
-		info_box_append( "The backup command was run from the {$backup_status['last_backup']['run_from']}.") ;
-
-		foreach( $backup_status['last_backup']['Errors'] as $err ) {
-			info_box_append( "Error: $err." );
-		}
-	}
-}
-
-
-function info_box_add( $msg, $type = "" )
-{
-	global $info_box_a;
-
-	$info_box_a[] = array (
-		'msg'  => gettext("$msg"),
-		'type' => "$type"
-	);
-	return( count($info_box_a) - 1 );
-}
-
-function info_box_append( $msg, $index = -1, $type = -1 )
-{
-	global $info_box_a;
-
-	if ( $index == -1 ) {
-		$index = count($info_box_a) - 1;
-	}
-
-	if( isset( $info_box_a[$index]['msg'] ) ) {
-		$info_box_a[$index]['msg'] .= "<br />" . gettext("$msg"); 
-		if( $type != -1 ) {
-			$info_box_a[$index]['type'] = $type;
-		}
-		return( true );
-	}
-	else {
-		return( false );
-	}
-}
-
-function info_box_print()
-{
-	global $info_box_a;
-
-	$count = 0;
-
-	global $_GET;
-	info_box_add( "_GET", "info" );
-	foreach( $_GET as $key => $value ) {
-		info_box_append( "_GET[$key] = $value" );
-	}
-	global $_POST;
-	info_box_add( "_POST", "info" );
-	foreach( $_POST as $key => $value ) {
-		info_box_append( "_GET[$key] = $value" );
-	}
-
-	foreach( $info_box_a as $i ) {
-		$count += 1;
-		if( $i['type'] == "" ) {
-			print_info_box($i['msg']);
-		}
-		else {
-			print_info_box($i['msg'], $i['type']);
-		}
-	}
-}
-
-if (!is_array($config['installedpackages']['backup'])) {
-	$config['installedpackages']['backup'] = array();
-}
-
-if (!is_array($config['installedpackages']['backup']['config'])) {
-	$config['installedpackages']['backup']['config'] = array();
-}
 
 $a_backup = &$config['installedpackages']['backup']['config'];
 $backup_dir = "/root/backup";
 $backup_filename = "pfsense.bak.tgz";
 $backup_status_path = "{$backup_dir}/backup.status.inc";
 $backup_path = "{$backup_dir}/{$backup_filename}";
-$argv_0 = __FILE__;
 $backup_status = include $backup_status_path;
 $info_box_a = [];
 
-if ( $has_command_line ) {
 
-	/*$argv_0 = $argv[0];*/
-	array_shift($argv);
+if ( isset($argv) ) {
 
 	if ( $argc > 1) {
-		foreach ($argv as $value) {
-			do_backup( $backup_dir . "/" . $value  );
-		}	
+		for( $i = 1; $i < $argc; $i++ ) {
+			do_backup( $backup_dir . "/" . $argv[$i]  );
+		}
 	}
 	else {
 		do_backup ( $backup_path );
@@ -282,11 +85,7 @@ if ($_GET['a'] == "download") {
 			#info_box_add( "{$backup_path}: Backup created successfully.", 'success' );
 		}
 	}
-}
-
-
-if ($_GET['a'] == "download") {
-	if ($_GET['t'] == "download") {
+	elseif ($_GET['t'] == "download") {
 		/* assume no... */
 		$has_backup = do_backup( $backup_path );
 
@@ -344,12 +143,9 @@ if ($_GET['a'] == "other") {
 		}
 		exit;
 	}
-}
-
-if ($_GET['a'] === 'other') {
-	if ($_GET['t'] === 'delete') {
+	elseif ($_GET['t'] === 'delete') {
 		unlink_if_exists($backup_path);
-		header('Location: backup.php');
+#		header('Location: backup.php');
 	}
 }
 
@@ -359,69 +155,16 @@ if (($_POST['submit'] == "Upload") && is_uploaded_file($_FILES['ulfile']['tmp_na
 	system("/usr/bin/tar -xpzC / -f {$backup_path}");
 }
 
-$pgtitle = array(gettext("Diagnostics"), gettext("Backup Files and Directories"), gettext("Settings"));
-if ( $has_command_line ) {
+
+if ( isset($argv) ) {
 	exit(0);
 }
 
-include("head.inc");
 
-// Define default Alerts Tab href link (Top row)
-#$get_req = pfb_alerts_default_page();
-
-info_box_print();
-
-if (isset($savemsg)) {
-        print_info_box($savemsg);
-}
-
-if (isset($_REQUEST['savemsg'])) {
-        $savemsg = htmlspecialchars($_REQUEST['savemsg']);
-        print_info_box($savemsg);
-}
+$thispage = "Settings";
+include("/usr/local/pkg/backup_head.inc");
 
 
-#print_info_box("a warning message", 'warning');
-#print_info_box("a sucess message", 'success');
-#print_info_box("a danger message", 'danger');
-#info_box_add( $msg, $type = "" );
-#info_box_append( $msg, $index = -1 );
-
-//print_info_box("$m");
-//$m = "";
-//if ($_GET['a'] == "download") {
-//	$m .= "downloadrrr ";
-//}
-//$m .= "_GET[a] = {$_GET['a']}, _GET[t] = {$_GET['t']}, _POST[submit] = {$_POST['submit']}, _GET[act] = {$_GET['act']}";
-
-
-/*
-print_info_box("a nothing message");		// its a warning
-print_info_box("a default message", 'default');	// black on while
-print_info_box("a info message", 'info');	// blue
-print_info_box("a warning message", 'warning');	// yelow
-print_info_box("a sucess message", 'success');	// green
-print_info_box("a danger message", 'danger');	// red
-print_info_box("a danger message, chaged button", 'danger', "cross", "cross text");
-*/
-
-
-/*
-	A test to get print_apply_box working
-*/
-$is_dirty = true;
-if ($_POST['apply']) {
-	// 0 is success
-	// non-zero means there was some problem
-	$retval = 0;
-}
-if ($_POST['apply']) {
-	print_apply_result_box($retval);
-	$is_dirty = false;
-}
-if ($is_dirty) {
-        print_apply_box(gettext("The firewall rule configuration has been changed.") . "<br />" . gettext("The changes must be applied for them to take effect."));
-}
 /*
 REF: https://stackoverflow.com/questions/31559469/how-to-create-a-simple-javascript-timer#:~:text=Sorted%20by:,6714%2017
 
@@ -471,10 +214,6 @@ function zeroPad(num, places) {
 
 */
 
-$tab_array = array();
-$tab_array[] = array(gettext("Settings"), true, "/packages/backup/backup.php");
-$tab_array[] = array(gettext("Add"), false, "/packages/backup/backup_edit.php");
-display_top_tabs($tab_array);
 ?>
 <div class="panel panel-default">
 	<div class="panel-heading"><h2 class="panel-title">Backups</h2></div>

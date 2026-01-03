@@ -82,7 +82,8 @@ if ($_POST) {
 		write_config("Backup: Settings saved");
 		backup_sync_package();
 
-		header("Location: backup.php");
+		$savemsg = gettext("Leading / was added to path.");
+		header("Location: backup.php?savemsg=$savemsg");
 		exit;
 	}
 }
@@ -91,15 +92,8 @@ $thispage = gettext("Add");
 if (!empty($id)) {
 	$thispage = gettext("Edit");
 }
+include("/usr/local/pkg/backup_header.inc");
 
-$pgtitle = array(gettext("Diagnostics"), gettext("Backup Files and Directories"), $thispage);
-include("head.inc");
-
-$tab_array = array();
-$tab_array[] = array(gettext("Settings"), false, "/packages/backup/backup.php");
-$tab_array[] = array($thispage, true, "/packages/backup/backup_edit.php");
-
-display_top_tabs($tab_array);
 
 $form = new Form();
 $section = new Form_Section('Backup Settings');
