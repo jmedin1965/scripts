@@ -67,7 +67,7 @@ function send_error( $str )
 
 function do_backup ( $file )
 {
-	global $a_backup, $backup_dir, $backup_status, $backup_status_path;
+	global $a_backup, $backup_dir, $backup_status, $backup_status_path, $argv;
 
 	$backup_status['last_backup'] = array();
 	$backup_status['last_backup']['start'] = date('Y-m-d H:i:s');
