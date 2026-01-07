@@ -36,7 +36,8 @@ if ($_GET['act'] == "del") {
 			unset($a_backup[$_GET['id']]);
 			write_config("Backup: Item deleted");
 			backup_sync_package();
-			header("Location: backup.php");
+			$savemsg = gettext("Item deleted sucesfully.");
+			header("Location: backup.php?savemsg={$savemsg}");
 			exit;
 		}
 	}
@@ -58,27 +59,31 @@ if ($_POST) {
 	$savemsg = "";
 	$savemsgtype = "sucess";
 
-
 	$ent = array();
 	$ent['name'] = $_POST['name'];
 	$ent['path'] = $_POST['path'];
 	$ent['enabled'] = $_POST['enabled'];
 	$ent['description'] = $_POST['description'];
 
-	if ( $ent['path'] == "" ) {
-		$savemsg .= gettext('Must specify path at least.') . ' <br /> ';
-		$savemsgtype = "alert";
+	// check if path is blank
+	if ( $ent['path'] == "" || ctype_space($ent['path']) ) {
+		$savemsg .= gettext('Path can not be empty. ') . ' <br /> ';
 		$input_errors = true;
 	}
-	/* make all paths start with / */
+	// make all paths start with /
 	elseif ( $ent['path'][0] != '/' ) {
 		$ent['path'] = "/" . $ent['path'];
-		$savemsg .= gettext('Added leading / to path.') . ' <br /> ';
+		$savemsg .= 'Added leading / to path, ';
 	}
-	// Check if path exists
-	if( count( glob( $ent['path'] ) ) == 0 ) {
-		$savemsg = "{$ent['path']}: Path does not exist.";
-		$savemsgtype = "alert";
+
+	// Check if path exists or if it's just /
+	if( $ent['path'] == '/' ) {
+		$savemsg .= gettext("Best not to include everything on this system.") . ' <br />';
+		$savemsg .= gettext("Please specify just a folder, not /.") . ' <br /> ';
+		$input_errors = true;
+	}
+	elseif( !$input_errors && count( glob( $ent['path'] ) ) == 0 ) {
+		$savemsg .= gettext("Path does not exist.") . ' <br /> ';
 		$input_errors = true;
 	}
 
@@ -86,18 +91,22 @@ if ($_POST) {
 		if (isset($id) && $a_backup[$id]) {
 			// update
 			$a_backup[$id] = $ent;
-			$savemsg .= gettext('Backup location updated sucessfully.') . '<br /> ';
+			$savemsg .= 'Backup location updated sucessfully. ';
 		} else {
 			// add
 			$a_backup[] = $ent;
-			$savemsg .= gettext('Backup location added sucessfully.') . '<br /> ';
+			$savemsg .= 'Backup location added sucessfully. ';
 		}
 
 		write_config("Backup: Settings saved");
 		backup_sync_package();
 
+		$savemsg = gettext($savemsg);
 		header("Location: backup.php?savemsg={$savemsg}");
 		exit;
+	}
+	else {
+		$savemsgtype = "danger";
 	}
 }
 
@@ -105,15 +114,7 @@ $thispage = gettext("Add");
 if (!empty($id)) {
 	$thispage = gettext("Edit");
 }
-
-$pgtitle = array(gettext("Diagnostics"), gettext("Backup Files and Directories"), $thispage);
-include("head.inc");
-
-$tab_array = array();
-$tab_array[] = array(gettext("Settings"), false, "/packages/backup/backup.php");
-$tab_array[] = array($thispage, true, "/packages/backup/backup_edit.php");
-
-display_top_tabs($tab_array);
+include("/usr/local/pkg/backup_head.inc");
 
 $form = new Form();
 $section = new Form_Section('Backup Settings');
@@ -130,7 +131,7 @@ $section->addInput(new Form_Input(
 	'Path',
 	'text',
 	$pconfig['path']
-))->setHelp('Enter the full path to the file or directory to backup.');
+))->setHelp('Enter the full path to the file or directory to backup. Path will have a leading / if it does not have one. Path can include shell glob characters. See <A href=https://www.php.net/manual/en/function.glob.php target=_blank >glob - Manual, pattern</a>.');
 
 $section->addInput(new Form_Select(
 	'enabled',

@@ -13,12 +13,21 @@ include("head.inc");
 info_box_print();
 
 if (isset($savemsg)) {
-	print_info_box($savemsg, 'success');
+	if (!isset($savemsgtype) ) {
+		$savemsgtype = 'success';
+	}
+	print_info_box($savemsg, $savemsgtype);
 }
 
 if (isset($_REQUEST['savemsg'])) {
 	$savemsg = htmlspecialchars($_REQUEST['savemsg']);
-	print_info_box($savemsg);
+	if (isset($_REQUEST['savemsgtype'])) {
+		$savemsgtype = htmlspecialchars($_REQUEST['savemsgtype']);
+	}
+	else {
+		$savemsgtype = 'success';
+	}
+	print_info_box($savemsg, $savemsgtype);
 }
 
 
@@ -40,13 +49,13 @@ if ($is_dirty) {
 }
 
 $tab_array = array();
-$tab_array[] = array(gettext("Settings"), true, "/packages/backup/backup.php");
+$tab_array[] = array(gettext("Settings"), $thispage == "Settings" , "/packages/backup/backup.php");
 if( $thispage == "Edit" ) {
-        $tab_array[] = array(gettext("Edit"), false, "/packages/backup/backup_edit.php");
+        $tab_array[] = array(gettext("Edit"), $thispage == "Edit", "/packages/backup/backup_edit.php");
 } else {
-        $tab_array[] = array(gettext("Add"), false, "/packages/backup/backup_edit.php");
+        $tab_array[] = array(gettext("Add"), $thispage == "Add", "/packages/backup/backup_edit.php");
 }
-$tab_array[] = array(gettext("Fred"), false, "/packages/backup/backup_edit.php");
+$tab_array[] = array(gettext("Debug"), $thispage == "Debug", "/packages/backup/backup_edit.php");
 
 display_top_tabs($tab_array);
 

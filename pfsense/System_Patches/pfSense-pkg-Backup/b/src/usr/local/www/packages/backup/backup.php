@@ -221,7 +221,7 @@ function zeroPad(num, places) {
 		<div class="table-responsive">
 			<table class="table table-hover">
 				<tr>
-					<td>Use this to tool to backup files and directories. The following directories are recommended for backup:
+					<td>Use this tool to backup files and directories. The following directories are recommended for backup:
 						<table>
 							<tr><td><strong>pfSense Config:</strong></td><td>/cf/conf</td></tr>
 							<tr><td><strong>RRD Graph Data Files:</strong></td><td>/var/db/rrd</td></tr>
@@ -300,11 +300,11 @@ function zeroPad(num, places) {
 			<table class="table table-striped table-hover table-condensed">
 				<thead>
 					<tr>
-						<td width="20%">Name</td>
-						<td width="25%">Path</td>
-						<td width="5%">Enabled</td>
-						<td width="40%">Description</td>
-						<td width="10%">Actions</td>
+						<td width="20%"><strong>Name</td>
+						<td width="25%"><strong>Path</td>
+						<td width="5%"><strong>Enabled</td>
+						<td width="40%"><strong>Description</td>
+						<td width="10%"><strong>Actions</td>
 					</tr>
 				</thead>
 				<tbody>

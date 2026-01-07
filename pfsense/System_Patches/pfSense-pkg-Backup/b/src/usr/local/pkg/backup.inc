@@ -47,7 +47,6 @@ if (!is_array($config['installedpackages']['backup']['config'])) {
 }
 
 
-
 function backup_sync_package() {
 	// this was broken code.
 }
@@ -68,11 +67,11 @@ function send_error( $str )
 
 function do_backup ( $file )
 {
-	global $a_backup, $has_command_line, $backup_dir, $backup_status, $backup_status_path;
+	global $a_backup, $backup_dir, $backup_status, $backup_status_path;
 
 	$backup_status['last_backup'] = array();
 	$backup_status['last_backup']['start'] = date('Y-m-d H:i:s');
-	if ( $has_command_line ) {
+	if ( isset($argv) ) {
 		$backup_status['last_backup']['run_from'] = "Command Line";
 	}
 	else {
@@ -80,7 +79,8 @@ function do_backup ( $file )
 	}
 
 	/* assume no... */
-	$backup_status['last_backup']['has_backup'] = false;
+	$has_backup = &$backup_status['last_backup']['has_backup'];;
+	#$backup_status['last_backup']['has_backup'] = false;
 	$backup_status['last_backup']['rc'] = 99;
 	$backup_status['last_backup']['Backup Location Count'] = count($a_backup);
 	$backup_status['last_backup']['Backup Locations'] = array();
@@ -93,7 +93,8 @@ function do_backup ( $file )
 				$backup_cmd .= escapeshellarg($ent['path']) . ' ';
 				$backup_status['last_backup']['Backup Locations'][] = $ent['path'];
 			}
-			$backup_status['last_backup']['has_backup'] = true;
+			$has_backup = true;
+			#$backup_status['last_backup']['has_backup'] = true;
 		}
 
 		/* Only interested in stderr */
@@ -101,20 +102,22 @@ function do_backup ( $file )
 
 		exec($backup_cmd, $out, $rc);
 
-		$backup_status['last_backup']['has_backup'] = ($backup_status['last_backup']['has_backup'] && ($rc === 0));
+		#$backup_status['last_backup']['has_backup'] = ($backup_status['last_backup']['has_backup'] && ($rc === 0));
+		$has_backup = ($has_backup && ($rc === 0));
 		$backup_status['last_backup']['rc'] = $rc;
 	}
 
 	$backup_status['last_backup']['Errors'] = array();
-	if( $backup_status['last_backup']['has_backup'] ) {
-		if ( $has_command_line ) {
+	#if( $backup_status['last_backup']['has_backup'] ) {
+	if( $has_backup ) {
+		if ( isset($argv) ) {
 			print "created: $file\n";
 		}
 		$backup_status['last_backup']['file'] = "$file";
 	}
 	else {
 		foreach( $out as $err ) {
-			if ( $has_command_line ) {
+			if ( isset($argv) ) {
 				print "error: $err\n";
 			}
 			send_error( $err );
@@ -130,7 +133,8 @@ function do_backup ( $file )
 	// update GUI status message
 	update_backup_status();
 
-	return( $backup_status['last_backup']['has_backup'] );
+	#return( $backup_status['last_backup']['has_backup'] );
+	return( $has_backup );
 }
 
 function update_backup_status()
@@ -148,7 +152,7 @@ function update_backup_status()
 		}
 		
 		if ( $backup_status['last_backup']['has_backup'] ) {
-			info_box_append( "Backup file {$backup_status['last_backup']['file']} was created successful on {$backup_status['last_backup']['end']}." );
+			info_box_append( "Backup file {$backup_status['last_backup']['file']} was created on {$backup_status['last_backup']['end']}." );
 		}
 		else {
 			info_box_append( "Failed to create backup file {$backup_status['last_backup']['file']}." );
@@ -166,6 +170,8 @@ function info_box_add( $msg, $type = "" )
 {
 	global $info_box_a;
 
+	// type can be one of (default, info, warning, success, danger)
+
 	$info_box_a[] = array (
 		'msg'  => gettext("$msg"),
 		'type' => "$type"
@@ -176,6 +182,8 @@ function info_box_add( $msg, $type = "" )
 function info_box_append( $msg, $index = -1, $type = -1 )
 {
 	global $info_box_a;
+
+	// type can be one of (default, info, warning, success, danger)
 
 	if( $msg == "" ) {
 		$msg = " ";
@@ -199,7 +207,7 @@ function info_box_append( $msg, $index = -1, $type = -1 )
 
 function info_box_print()
 {
-	global $info_box_a, $debug;
+	global $info_box_a, $debug, $a_backup, $config;
 
 	$count = 0;
 
@@ -207,25 +215,55 @@ function info_box_print()
 
 		info_box_add( "debug = true", "info" );
 
-		global $_GET;
-		info_box_append( "" );
-		info_box_append( "_GET:" );
-		foreach( $_GET as $key => $value ) {
-			info_box_append( "_GET[$key] = $value" );
-		}
-		global $_POST;
-		info_box_append( "" );
-		info_box_append( "_POST:" );
-		foreach( $_POST as $key => $value ) {
-			info_box_append( "_POST[$key] = $value" );
-		}
+		$arrayOfRef = [
+			[ 'name' => 'PHP_VERSION', 'value' => PHP_VERSION, ],
+			[ 'name' => '_GET' ],
+			[ 'name' => '_POST' ],
+			[ 'name' => '_REQUEST' ],
+			[ 'name' => '_SESSION' ],
+#			[ 'name' => 'GLOBALS' ],
+			[ 'name' => '_ENV' ],
+			[ 'name' => '_COOKIE' ],
+			[ 'name' => 'argc' ],
+			[ 'name' => 'argv' ],
+			[ 'name' => 'a_backup' ],
+			[ 'name' => '_SERVER' ]
+		];
 
-		global $_REQUEST;
-		info_box_append( "" );
-		info_box_append( "_REQUEST:" );
-		foreach( $_REQUEST as $key => $value ) {
-			info_box_append( "_REQUEST[$key] = $value" );
+		foreach ( $arrayOfRef as $a ) {
+
+			info_box_append( "" );
+			$name = $a['name'];
+			if( isset( $a['name'] ) ) {
+				if( isset( $a['value'] ) ) {
+					$array = $a['value'];
+				}
+				else {
+					$array = &$GLOBALS[$name];
+				}
+				if( is_array( $array ) ) {
+					if( count( $array ) === 0 ) {
+						info_box_append( "{$name}:" );
+					}
+					foreach( $array as $key => $value ) {
+						if( $name === 'GLOABLS' && $key === 'GLOBALS' ) {
+							// skip recursion
+							continue;
+						}
+						else {
+							info_box_append( "{$name}[$key] = " . print_r($value, true) );
+						}
+					}
+				}
+				else {
+					info_box_append( "{$name} = " . print_r($array, true) );
+				}
+			}
+			else {
+				info_box_append( "{$name}: not set" );
+			}
 		}
+		info_box_append( "xxx = " . print_r($config['installedpackages']['backup'], true) );
 	}
 
 	foreach( $info_box_a as $i ) {
