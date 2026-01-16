@@ -19,6 +19,7 @@ else
     cd "$git_repo_local"
     git remote set-url --push origin "$git_pushurl"
 fi
+git remote set-url --push origin "$git_pushurl"
 
 # add to path
 if [ -e "$git_repo_local/profile.d/usr-local-scripts.sh" ]

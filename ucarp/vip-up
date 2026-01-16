@@ -1,0 +1,116 @@
+#!/bin/bash
+
+msg()
+{
+    if [ "$debug" -gt 0 ]
+    then
+        echo "msg: $@"
+        echo "msg: $@" >> /tmp/ucarp.log
+    fi
+}
+
+export -f msg
+export debug="0"
+export debug="1"
+
+while [ "$1" == debug ]
+do
+    ((debug++))
+    shift
+done
+
+export prog="$(/bin/basename "$0")"
+export action="${prog##*-}"
+export dev="$1"
+export ip="$2"
+export alias="$3"
+export alias_dev=""
+[ -n "$alias" ] || alias="ucarp"
+alias_dev="$dev:$alias"
+
+export mask="$(set -- $(/sbin/ip a show $dev | /bin/grep inet | /bin/head -n 1); echo $2)"
+mask="${mask##*/}"
+
+# This is for the state file name. Use the VID as a prefferance
+[ -z "$IF_UCARP_VID" ] && IF_UCARP_VID="$alias_dev"
+export state_f="/var/run/ucarp.$IF_UCARP_VID.state"
+
+msg
+msg $0
+msg prog=$prog
+msg state_f=$state_f
+msg action=$action
+msg debug=$debug
+msg dev=$dev
+msg ip=$ip
+msg mask=$mask
+msg alias=$alias
+msg alias_dev=$alias_dev
+msg IFACE=$IFACE
+msg IFUPDOWN_eth0=$IFUPDOWN_eth0
+msg IF_ADDRESS=$IF_ADDRESS
+msg IF_BROADCAST=$IF_BROADCAST
+msg IF_DNS_NAMESERVERS=$IF_DNS_NAMESERVERS
+msg IF_DNS_SEARCH=$IF_DNS_SEARCH
+msg IF_GATEWAY=$IF_GATEWAY
+msg IF_NETMASK=$IF_NETMASK
+msg IF_UCARP_ADVBASE=$IF_UCARP_ADVBASE
+msg IF_UCARP_ADVSKEW=$IF_UCARP_ADVSKEW
+msg IF_UCARP_DOWNSCRIPT=$IF_UCARP_DOWNSCRIPT
+msg IF_UCARP_MASTER=$IF_UCARP_MASTER
+msg IF_UCARP_PASSWORD=$IF_UCARP_PASSWORD
+msg IF_UCARP_UPSCRIPT=$IF_UCARP_UPSCRIPT
+msg IF_UCARP_VID=$IF_UCARP_VID
+msg IF_UCARP_VIP=$IF_UCARP_VIP
+msg IF_UCARP_XPARAM=$IF_UCARP_XPARAM
+
+for a in "$@"
+do
+    msg arg=$a
+done
+
+msg "check vip-pre-${action}.d"
+for f in /etc/ucarp/vip-pre-${action}.d/*
+do
+    if [ -x "$f" ]
+    then
+        "$f" "$@"
+        msg "  $? : $f $@"
+    fi
+done
+
+sleep 2
+
+if [ "$prog" == "vip-up" ]
+then
+    echo MASTER > "$state_f"
+
+    [ "$debug" -le 1 ] && /sbin/ifup $alias_dev
+    msg $? : /sbin/ifup $alias_dev
+
+elif [ "$prog" == "vip-down" ]
+then
+    echo BACKUP > "$state_f"
+
+    echo ListenAddress $IF_ADDRESS > /etc/ssh/sshd_config.d/$dev.conf
+
+    [ "$debug" -le 1 ] && /sbin/ifdown $alias_dev
+    msg $? : /sbin/ifdown $alias_dev
+    [ "$debug" -le 1 ] && /sbin/ip -s -s neigh flush all
+    msg $? : /sbin/ip -s -s neigh flush all
+else
+    msg "$prog : unknown prog name."
+fi
+
+sleep 2
+
+msg "check vip-post-${action}.d"
+for f in /etc/ucarp/vip-post-${action}.d/*
+do
+    if [ -x "$f" ]
+    then
+        "$f" "$@"
+        msg "  $? : $f $@"
+    fi
+done
+
