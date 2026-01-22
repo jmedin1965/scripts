@@ -41,14 +41,17 @@ ssh_opts=(
 
 # apply fan patches if fan speed in higher than this
 fan_warn="60"
-#
+
 # Unless the HDD temp is this value or higher.
 # If it is, reset the ilo so that fan speed rises to cool the system
 HDD_warn="59"
-#
-# But if the fan speed is already this high, then do not reset
-HDD_do_not_reset_if_speed_greated_than="70"
-#
+
+# Scale fan speed depending on HDD temperature
+# Turn server off if temperatire is above HDD_max
+HDD_normal="55"
+HDD_max="59"
+FAN_normal="50 "
+FAN_max="255"
 
 declare -A ilo_data
 
@@ -59,15 +62,78 @@ opt_force=""
 opt_reset=""
 opt_print=""
 opt_report_only=""
+opt_mail=""
 
 reset_done=""
 fans_done=""
 
 main()
 {
+    ##########
+    #
+    # Check system power status
+    #
+    ilo_cmd 'power'
+    server_power="$( set -- $ilo_cmd_str; echo ${!#})"
+    info "Server power state : $server_power"
+    #
+    ##########
+
+    if [ "$server_power" != "Off" ]
+    then
+        check_ilo "$@"
+    else
+        warn "Server is off, not checking ilo."
+        EV="$((EV++))"
+
+        check_power_on
+    fi
+
+    # only print if we have a tty and we did not get cron option
+    # with cron, we do not display output, we need to use the mail option
+    if /bin/tty -s && [ -z "$opt_cron" ]
+    then
+        echo "$info_msg"
+        echo "$warn_msg"
+    fi
+
+    if ( [ -n "$warn_msg" -o "$EV" != 0 ] && [ -n "$opt_cron" ] ) || [ -n "$opt_mail" ]
+    then
+        (
+        echo -e "$info_msg"
+        echo -e "$warn_msg"
+        ) | /usr/local/bin/send_alert
+    fi
+
+
+    echo "$info_msg" > /var/log/check-ilo.log
+    echo "$warn_msg" >> /var/log/check-ilo.log
+
+    return $EV
+}
+
+
+check_power_on()
+{
+	# Get the current hour in 24-hour format without a leading zero (%k)
+	# Use %H for a leading zero if preferred, but ensure comparison uses (( )) for numerical evaluation
+	current_hour=$(date +"%k")
+
+	# Define the start and end hours
+	start_hour=20 # 8:00 PM
+	end_hour=24   # Midnight is the end of the 24th hour (or start of 0th hour of next day)
+
+	# Perform the numerical comparison
+	if (( current_hour >= start_hour && current_hour < end_hour )); then
+		warn "Turning server on"
+    	ilo_cmd 'power on'
+	fi
+}
+
+check_ilo()
+{
     local val
     local scale
-
 
     process_opts "$@"
 
@@ -81,7 +147,6 @@ main()
         done
         exit 0
     fi
-
 
     ##########
     #
@@ -97,16 +162,19 @@ main()
     if [ "$HealthState" != "Ok" ]
     then
         warn "$DeviceID HealthState is $HealthState"
+        EV="$((EV++))"
     fi
 
     if [ "$OperationalStatus" != "Ok" ]
     then
         warn "$DeviceID OperationalStatus is $OperationalStatus"
+        EV="$((EV++))"
     fi
 
     if [ "$temperature" -ge "$HDD_warn" ]
     then
-         warn "$DeviceID temperature greater than $((HDD_warn - 1)) ${scale}."
+        warn "$DeviceID temperature greater than $((HDD_warn - 1)) ${scale}."
+        EV="$((EV++))"
     fi
     #
     ##########
@@ -135,19 +203,23 @@ main()
             if [ "$speed" -ge "$fan_warn" ]
             then
                 warn "Fan$fan speed greater than $((fan_warn - 1)) ${scale}."
+                EV="$((EV++))"
             fi
         else
             warn "Unable to get fan $fan speed"
+            EV="$((EV++))"
         fi
         
         if [ "$HealthState" != "Ok" ]
         then
             warn "Fan$fan HealthState is $HealthState"
+            EV="$((EV++))"
         fi
 
         if [ "$OperationalStatus" != "Ok" ]
         then
             warn "Fan$fan OperationalStatus is $OperationalStatus"
+            EV="$((EV++))"
         fi
     done
     #
@@ -177,33 +249,34 @@ main()
     #
     ##########
 
+
     ##########
     #
     # Do HDD Temperature and fan speed
     #
-    if [ "$temperature" -ge "$HDD_warn" ]
+    if [ "$temperature" -gt "$HDD_max" ]
     then
-        if [ "${fan_speed_max}" -gt "$HDD_do_not_reset_if_speed_greated_than" ]
+        ilo_cmd 'power off'
+        warn "HDD Temp is critical at $temperature ${scale}, shutting down server."
+        EV="$((EV++))"
+
+    elif [ "$temperature" -gt "$HDD_normal" ]
+    then
+        factor="$(( ( FAN_max - FAN_normal ) / ( HDD_max - HDD_normal - 1 ) ))"
+        speed=$(( ( ( temperature - HDD_normal ) * factor ) + FAN_normal ))
+
+        warn "HDD Temp is high at $temperature ${scale}, set min fan speed to $speed."
+        cmd_set_fan_speed_min $speed
+        EV="$((EV++))"
+        echo
+    else
+        if [ "$fan_speed_max" -gt "$fan_warn" ]
         then
-            warn "Fan speed is ${fan_speed_max}, which is greater than ${HDD_do_not_reset_if_speed_greated_than}, so not reseting"
-        else
-            cmd_reset
+            warn "HDD Temp is normal at $temperature ${scale}, set min fan speed to $FAN_normal."
+            cmd_set_fan_speed_min $FAN_normal
+            cmd_set_fan_speed
         fi
-
-    elif [ -n "$warn_msg" ]
-    then
-        cmd_set_fan_speed
     fi
-    #
-    ##########
-
-    if [ -n "$warn_msg" ] || [ -z "$opt_cron" ]
-    then
-        echo "$info_msg"
-        echo "$warn_msg"
-    fi
-
-    return $EV
 }
 
 
@@ -213,13 +286,6 @@ cmd_set_fan_speed()
     then
         warn "we have alreaqdy reset, not setting fan speeds."
 
-    elif [ -n "$fans_done=" ]
-    then
-        warn "fans done already, not resetting ilo."
-
-    elif [ -n "$reset_done" ]
-    then
-        warn "reset done already, not setting fan speed."
     else
         warn "Setting fan speeds."
         ilo_cmd 'fan pid 11 sp 6000'
@@ -230,6 +296,27 @@ cmd_set_fan_speed()
         ilo_cmd 'fan pid 49 sp 6000'
         ilo_cmd 'fan pid 50 sp 3800'
         fans_done="yes"
+    fi
+}
+
+cmd_set_fan_speed_min()
+{
+    local speed="$1"
+
+    if [ "$speed" == "" ] || [[ ! "$speed" =~ ^[0-9]+$ ]]
+    then
+        warn "Need a number between 0 and 255 to set min fan speed."
+
+    elif [ -n "$opt_report_only" ]
+    then
+        warn "Report Only, not setting min speed."
+
+    else
+        [ "$speed" -gt 255 ] && speed="255"
+        for i in 0 1 2 3 4 5 6 7
+        do
+            ilo_cmd "fan p $i min $speed"
+        done
     fi
 }
 
@@ -273,6 +360,7 @@ process_opts()
                 exit 0
                 ;;
             report-only) opt_report_only="$opt";;
+            mail) opt_mail="$opt";;
             *)
                 echo "Erron: Unknown command $opt$"
                 echo
@@ -290,6 +378,7 @@ usage()
     echo "Where command is:"
     echo "  cron        - Only print on error"
     echo "  force       - Force setting fan speed"
+    echo "  mail        - Force sending status via email"
     echo "  print       - Printg all ilo4 values"
     echo "  reset       - Reset ilo4"
     echo "  report-only - Do not reset or set fan speed"
@@ -333,6 +422,7 @@ get_val()
                 ;;
             (-*)
                 echo -n "${first}${name##-}"
+                echo -n "a${first}${name##-}a" >> /var/log/check-ilo.v.log
                 first=" "
                 ;;
             (*)
@@ -347,8 +437,10 @@ get_val()
                     if [ "$index" == "@" ]
                     then
                         echo -n "${first}${val[@]}"
+                        echo -n "b${first}${val[@]}b" >> /var/log/check-ilo.v.log
                     else
                         echo -n "${first}${val[$index]}"
+                        echo -n "c${first}${val[$index]}c" >> /var/log/check-ilo.v.log
                     fi
                     first=" "
                     index="@"
@@ -356,28 +448,38 @@ get_val()
                 ;;
             esac
     done
-    [ -n "$first" ] && echo
+    [ -n "$first" ] && ( echo -e '\n'; echo -e 'd\n' >> /var/log/check-ilo.v.log)
 }
 
 ilo_cmd()
 {
     local str
 
+    ilo_cmd_str=""
+
+    if [ $# == 1 ]
+    then
+            # capture the last non blank line in str
+            str="$(/usr/bin/ssh "${ssh_opts[@]}" $host "$1" | 
+                /bin/dos2unix |
+                /bin/grep -v '^\s*$' |
+                /bin/tail -n 1
+                )"
+            ilo_cmd_str="$str"
+
+            EV=$((EV + $?))
+    else
     (
         while [ $# != 0 ]
         do
-            #str="$(/usr/bin/ssh "${ssh_opts[@]}" $host "$1")"
-            #str="$( echo "$str" | /usr/bin/grep -v -e '^\s*$' )"
-            #EV=$((EV + $?))
 
             echo "$1"
             shift
             sleep 3
         done
         echo "exit"
-    ) | /usr/bin/ssh "${ssh_opts[@]}" $host 
-
-    EV=$((EV + $?))
+    ) | /usr/bin/ssh "${ssh_opts[@]}" $host | /bin/dos2unix
+    fi
 }
 
 #/map1/oemhp_alertmail1                
@@ -406,11 +508,11 @@ get_values()
     local str
 
     # get result and capture return value
-    str="$(/usr/bin/ssh "${ssh_opts[@]}" $host "show -a")"
+    str="$(/usr/bin/ssh "${ssh_opts[@]}" $host "show -a" | /bin/dos2unix)"
     EV=$((EV + $?))
 
     #remove CR
-    str="$(echo "$str" | /usr/bin/sed 's/\r$//')"
+    #str="$(echo "$str" | /usr/bin/sed 's/\r$//')"
     EV=$((EV + $?))
 
     #/usr/bin/ssh ${ssh_opts[@]}" $host "show -a" | /usr/bin/sed 's/\r$//' | while read line

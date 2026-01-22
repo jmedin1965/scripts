@@ -4,8 +4,9 @@ msg()
 {
     if [ "$debug" -gt 0 ]
     then
-        echo "msg: $@"
-        echo "msg: $@" >> /tmp/ucarp.log
+        date="$(/bin/date)"
+        echo "${date}: $@"
+        echo "${date}: $@" >> /tmp/ucarp.log
     fi
 }
 
@@ -84,6 +85,8 @@ sleep 2
 if [ "$prog" == "vip-up" ]
 then
     echo MASTER > "$state_f"
+    "$(/bin/date) HA cluster member \"($ip@$dev)\": has resumed CARP state \"MASTER\" for vhid $IF_UCARP_VID" |
+        /usr/local/bin/send_alert "$(/bin/hostname -f) - Notification"
 
     [ "$debug" -le 1 ] && /sbin/ifup $alias_dev
     msg $? : /sbin/ifup $alias_dev
@@ -91,6 +94,8 @@ then
 elif [ "$prog" == "vip-down" ]
 then
     echo BACKUP > "$state_f"
+    "$(/bin/date) HA cluster member \"($ip@$dev)\": has resumed CARP state \"MASTER\" for vhid $IF_UCARP_VID" |
+        /usr/local/bin/send_alert "$(/bin/hostname -f) - Notification"
 
     echo ListenAddress $IF_ADDRESS > /etc/ssh/sshd_config.d/$dev.conf
 
