@@ -98,7 +98,7 @@ msg "SUDO_USER=$SUDO_USER"
 msg "USER=$USER"
 msg "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
 # WSL2, much easier now with bitwarder ssh-agent
-if [ "$WSL2" == true ]
+if [ "$WSL2" == true ] && [ -z "$SSH_AUTH_SOCK" ]
 then
     msg
     msg " we are using WSL2"
