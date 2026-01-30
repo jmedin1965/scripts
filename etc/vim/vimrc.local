@@ -63,3 +63,7 @@ syntax on
 " REF: https://superuser.com/questions/1284561/why-is-vim-starting-in-replace-mode
 set t_u7=
 
+" REF: https://vi.stackexchange.com/questions/9249/how-do-i-restore-visual-mode-selection-highlighting
+highlight Visual cterm=reverse ctermbg=NONE
+
+
