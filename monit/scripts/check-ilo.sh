@@ -93,7 +93,41 @@ main()
     fi
 
     declare -p state     | /bin/sed 's/^declare -A state=/declare -A state_old=/' > /var/log/check-ilo.state.log 
-    declare -p state_old | /bin/sed 's/^declare -A state=/declare -A state_old=/' > /var/log/check-ilo.state_old.log 
+
+    if ( [ -n "$warn_msg" -o "$EV" != 0 ] && [ -n "${state[opt_cron]}" ] ) || [ -n "${state[opt_mail]}" ]
+    then
+		if compare_associative_arrays state state_old
+		then
+            do_email="F"
+            info "old state is same as new state, not emailing."
+
+        elif [ "${state[server_power]}" != "${state_old[server_power]}" ]
+        then
+            do_email="T"
+            warn "server power state changed."
+
+        # check if mail file is older that 2 hours
+        elif [ ! -e /var/log/check-ilo.mail.log ] || [ $(( "$(/bin/date +%s)" - "$(/bin/stat -c "%Y" /var/log/check-ilo.mail.log)")) -gt "$((2 * 60 * 60))" ]
+        then
+            do_email="T"
+            warn "Mail file is older than 2 hours."
+        else
+            do_email="F"
+            warn "Mail file is not older than 2 hours."
+        fi
+
+        #warn '$((' "$(/bin/date +%s)" - "$(/bin/stat -c "%Y" /var/log/check-ilo.mail.log)" '))' '-gt' "$((2 * 60 * 60))"
+        #warn "$(( "$(/bin/date +%s)" - "$(/bin/stat -c "%Y" /var/log/check-ilo.mail.log)"))" '-gt' "$((2 * 60 * 60))"
+
+        if [ "$do_email" == "T" ] 
+        then
+            warn "Sending mail."
+			(
+				echo -e "$info_msg"
+				echo -e "$warn_msg"
+			) | /bin/tee /var/log/check-ilo.mail.log | /usr/local/bin/send_alert
+		fi
+    fi
 
     # only print if we have a tty and we did not get cron option
     # with cron, we do not display output, we need to use the mail option
@@ -101,17 +135,6 @@ main()
     then
         echo "$info_msg"
         echo "$warn_msg"
-    fi
-
-    if ( [ -n "$warn_msg" -o "$EV" != 0 ] && [ -n "${state[opt_cron]}" ] ) || [ -n "${state[opt_mail]}" ]
-    then
-		if ! compare_associative_arrays state state_old
-		then
-			(
-				echo -e "$info_msg"
-				echo -e "$warn_msg"
-			) | /usr/local/bin/send_alert
-		fi
     fi
 
     echo "$info_msg" > /var/log/check-ilo.log
@@ -459,7 +482,6 @@ get_val()
                 ;;
             (-*)
                 echo -n "${first}${name##-}"
-                echo -n "a${first}${name##-}a" >> /var/log/check-ilo.v.log
                 first=" "
                 ;;
             (*)
@@ -474,10 +496,8 @@ get_val()
                     if [ "$index" == "@" ]
                     then
                         echo -n "${first}${val[@]}"
-                        echo -n "b${first}${val[@]}b" >> /var/log/check-ilo.v.log
                     else
                         echo -n "${first}${val[$index]}"
-                        echo -n "c${first}${val[$index]}c" >> /var/log/check-ilo.v.log
                     fi
                     first=" "
                     index="@"
@@ -485,7 +505,7 @@ get_val()
                 ;;
             esac
     done
-    [ -n "$first" ] && ( echo -e '\n'; echo -e 'd\n' >> /var/log/check-ilo.v.log)
+    [ -n "$first" ] && echo -e '\n'
 }
 
 ilo_cmd()
