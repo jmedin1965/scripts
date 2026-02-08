@@ -27,7 +27,7 @@ export SSH_AGENT="ssh-agent"                            # the linux ssh-agent
 
 # WSL2 and bitwarden-agent
 WSL2="false"
-if [ "`uname -r | tail -c 5`" == WSL2 ]
+if [ "`uname -r | tail -c 5`" == WSL2 ] && [ -z "$SSH_AUTH_SOCK" ] # even on WSL, we use SSH_AUTH_SOCK if we have one
 then
 	WSL2="true"
 	export BW_SSH_AUTH_SOCK=~/.ssh/bitwarden-ssh-agent.sock
@@ -78,7 +78,7 @@ then
     # release trap
     trap - INT
 
-    sleep 1
+    sleep 20
 	exit 0
 fi
 
@@ -98,7 +98,7 @@ msg "SUDO_USER=$SUDO_USER"
 msg "USER=$USER"
 msg "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
 # WSL2, much easier now with bitwarder ssh-agent
-if [ "$WSL2" == true ] && [ -z "$SSH_AUTH_SOCK" ]
+if [ "$WSL2" == true ]
 then
     msg
     msg " we are using WSL2"
