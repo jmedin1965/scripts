@@ -54,32 +54,35 @@ FAN_normal="50 "
 FAN_max="255"
 
 declare -A ilo_data
-
 EV="0"
-
-opt_cron=""
-opt_force=""
-opt_reset=""
-opt_print=""
-opt_report_only=""
-opt_mail=""
 
 reset_done=""
 fans_done=""
 
+declare -A state
+declare -A state_old
+[ -e '/var/log/check-ilo.state.log' ] && source /var/log/check-ilo.state.log
+
 main()
 {
+    process_opts "$@"
+
+    if ! /bin/tty -s  || [ -n "${state[opt_cron]}" ]
+    then
+        exec 2>&1 > /var/log/check-ilo.out.log
+    fi
+
     ##########
     #
     # Check system power status
     #
     ilo_cmd 'power'
-    server_power="$( set -- $ilo_cmd_str; echo ${!#})"
-    info "Server power state : $server_power"
+    state[server_power]="$( set -- $ilo_cmd_str; echo ${!#})"
+    info "Server power state : ${state[server_power]}"
     #
     ##########
 
-    if [ "$server_power" != "Off" ]
+    if [ "${state[server_power]}" != "Off" ]
     then
         check_ilo "$@"
     else
@@ -89,27 +92,75 @@ main()
         check_power_on
     fi
 
+    declare -p state     | /bin/sed 's/^declare -A state=/declare -A state_old=/' > /var/log/check-ilo.state.log 
+
+    if ( [ -n "$warn_msg" -o "$EV" != 0 ] && [ -n "${state[opt_cron]}" ] ) || [ -n "${state[opt_mail]}" ]
+    then
+		if compare_associative_arrays state state_old
+		then
+            do_email="F"
+            info "old state is same as new state, not emailing."
+
+        elif [ "${state[server_power]}" != "${state_old[server_power]}" ]
+        then
+            do_email="T"
+            warn "server power state changed."
+
+        # check if mail file is older that 2 hours
+        elif [ ! -e /var/log/check-ilo.mail.log ] || [ $(( "$(/bin/date +%s)" - "$(/bin/stat -c "%Y" /var/log/check-ilo.mail.log)")) -gt "$((2 * 60 * 60))" ]
+        then
+            do_email="T"
+            warn "Mail file is older than 2 hours."
+        else
+            do_email="F"
+            warn "Mail file is not older than 2 hours."
+        fi
+
+        #warn '$((' "$(/bin/date +%s)" - "$(/bin/stat -c "%Y" /var/log/check-ilo.mail.log)" '))' '-gt' "$((2 * 60 * 60))"
+        #warn "$(( "$(/bin/date +%s)" - "$(/bin/stat -c "%Y" /var/log/check-ilo.mail.log)"))" '-gt' "$((2 * 60 * 60))"
+
+        if [ "$do_email" == "T" ] 
+        then
+            warn "Sending mail."
+			(
+				echo -e "$info_msg"
+				echo -e "$warn_msg"
+			) | /bin/tee /var/log/check-ilo.mail.log | /usr/local/bin/send_alert
+		fi
+    fi
+
     # only print if we have a tty and we did not get cron option
     # with cron, we do not display output, we need to use the mail option
-    if /bin/tty -s && [ -z "$opt_cron" ]
+    if /bin/tty -s && [ -z "${state[opt_cron]}" ]
     then
         echo "$info_msg"
         echo "$warn_msg"
     fi
 
-    if ( [ -n "$warn_msg" -o "$EV" != 0 ] && [ -n "$opt_cron" ] ) || [ -n "$opt_mail" ]
-    then
-        (
-        echo -e "$info_msg"
-        echo -e "$warn_msg"
-        ) | /usr/local/bin/send_alert
-    fi
-
-
     echo "$info_msg" > /var/log/check-ilo.log
     echo "$warn_msg" >> /var/log/check-ilo.log
 
+
     return $EV
+}
+
+
+compare_associative_arrays() {
+    local declare1 declare2
+    # Get the declaration strings and replace variable names with a placeholder
+    declare1=$(declare -p "$1" 2>/dev/null)
+    declare1="${declare1#*=}"
+    declare2=$(declare -p "$2" 2>/dev/null)
+    declare2="${declare2#*=}"
+
+    # Compare the modified declaration strings
+    if [[ "$declare1" == "$declare2" ]]; then
+		return 0 # both same
+        #echo "$1 and $2 are identical"
+    else
+		return 1 # both different
+        #echo "$1 and $2 are different"
+    fi
 }
 
 
@@ -117,11 +168,11 @@ check_power_on()
 {
 	# Get the current hour in 24-hour format without a leading zero (%k)
 	# Use %H for a leading zero if preferred, but ensure comparison uses (( )) for numerical evaluation
-	current_hour=$(date +"%k")
+	local current_hour=$(date +"%k")
 
 	# Define the start and end hours
-	start_hour=20 # 8:00 PM
-	end_hour=24   # Midnight is the end of the 24th hour (or start of 0th hour of next day)
+	local start_hour=20 # 8:00 PM
+	local end_hour=24   # Midnight is the end of the 24th hour (or start of 0th hour of next day)
 
 	# Perform the numerical comparison
 	if (( current_hour >= start_hour && current_hour < end_hour )); then
@@ -135,12 +186,10 @@ check_ilo()
     local val
     local scale
 
-    process_opts "$@"
-
     get_values
     sleep 2
 
-    if [ -n "$opt_print" ]
+    if [ -n "${state[opt_print]}" ]
     then
         for key in "${!ilo_data[@]}"; do
             echo "$key = ${ilo_data[$key]}"
@@ -154,10 +203,14 @@ check_ilo()
     #
     info "$(get_val "/system1/sensor12" DeviceID -= CurrentReading RateUnits -: -HealthState HealthState -: -OperationalStatus OperationalStatus)"
     DeviceID="$(get_val "/system1/sensor12" DeviceID)"
-    temperature="$(get_val "/system1/sensor12" CurrentReading)"
-    scale="$(get_val "/system1/sensor12" RateUnits)"
+	temperature="$(get_val "/system1/sensor12" CurrentReading)"
+    state[HDD_temp]="$temperature"
+    HDDscale="$(get_val "/system1/sensor12" RateUnits)"
+    state[HDDScale]="$HDDscale"
     HealthState="$(get_val "/system1/sensor12" HealthState)"
+    state[HDDHealth]="$HealthState"
     OperationalStatus="$(get_val "/system1/sensor12" OperationalStatus)"
+    state[HDDOperationalStatus]="$OperationalStatus"
 
     if [ "$HealthState" != "Ok" ]
     then
@@ -173,7 +226,7 @@ check_ilo()
 
     if [ "$temperature" -ge "$HDD_warn" ]
     then
-        warn "$DeviceID temperature greater than $((HDD_warn - 1)) ${scale}."
+        warn "$DeviceID temperature greater than $((HDD_warn - 1)) ${HDDscale}."
         EV="$((EV++))"
     fi
     #
@@ -190,7 +243,9 @@ check_ilo()
         speed="$(get_val "/system1/fan1" 0 DesiredSpeed)"
         scale="$(get_val "/system1/fan1" 1 DesiredSpeed)"
         HealthState="$(get_val "/system1/fan1" HealthState)"
+    	state[Fan${fan}HealthState]="$HealthState"
         OperationalStatus="$(get_val "/system1/fan1" OperationalStatus)"
+    	state[Fan${fan}OperationalStatus]="$OperationalStatus"
 
         if [ "$speed" -gt "$fan_speed_max" ]
         then
@@ -229,10 +284,10 @@ check_ilo()
     #
     # Check reset Option
     #
-    if [ -n "$opt_reset" ]
+    if [ -n "${state[opt_reset]}" ]
     then
         cmd_reset
-        opt_report_only="opt_reset"
+        state[opt_report_only]="opt_reset"
     fi
     #
     ##########
@@ -241,10 +296,10 @@ check_ilo()
     #
     # Check force Option
     #
-    if [ -n "$opt_force" ]
+    if [ -n "${state[opt_force]}" ]
     then
         cmd_set_fan_speed
-        opt_report_only="opt_force"
+        state[opt_report_only]="opt_force"
     fi
     #
     ##########
@@ -258,21 +313,26 @@ check_ilo()
     then
         ilo_cmd 'power off'
         warn "HDD Temp is critical at $temperature ${scale}, shutting down server."
+    	state[action]="Power off"
         EV="$((EV++))"
 
     elif [ "$temperature" -gt "$HDD_normal" ]
     then
         factor="$(( ( FAN_max - FAN_normal ) / ( HDD_max - HDD_normal - 1 ) ))"
         speed=$(( ( ( temperature - HDD_normal ) * factor ) + FAN_normal ))
+    	state[FanFactor]="$factor"
+    	state[FanSpeed]="$speed"
+    	state[action]="Temp high, Set Fan Speed $speed"
 
-        warn "HDD Temp is high at $temperature ${scale}, set min fan speed to $speed."
+        warn "HDD Temp is high at $temperature ${HDDscale}, set min fan speed to $speed."
         cmd_set_fan_speed_min $speed
         EV="$((EV++))"
         echo
     else
         if [ "$fan_speed_max" -gt "$fan_warn" ]
         then
-            warn "HDD Temp is normal at $temperature ${scale}, set min fan speed to $FAN_normal."
+            warn "HDD Temp is normal at $temperature $HDDscale}, set min fan speed to $FAN_normal."
+    		state[action]="Temp normal, Set Fan Speed $FAN_normal"
             cmd_set_fan_speed_min $FAN_normal
             cmd_set_fan_speed
         fi
@@ -282,9 +342,9 @@ check_ilo()
 
 cmd_set_fan_speed()
 {
-    if [ "$opt_report_only" == "opt_reset" ]
+    if [ "${state[opt_report_only]}" == "opt_reset" ]
     then
-        warn "we have alreaqdy reset, not setting fan speeds."
+        warn "we have already reset, not setting fan speeds."
 
     else
         warn "Setting fan speeds."
@@ -307,7 +367,7 @@ cmd_set_fan_speed_min()
     then
         warn "Need a number between 0 and 255 to set min fan speed."
 
-    elif [ -n "$opt_report_only" ]
+    elif [ -n "${state[opt_report_only]}" ]
     then
         warn "Report Only, not setting min speed."
 
@@ -324,7 +384,7 @@ cmd_reset()
 {
     local wait_time="300"
 
-    if [ -n "$opt_report_only" ]
+    if [ -n "${state[opt_report_only]}" ]
     then
         warn "report_only is set, not resetting ilo."
 
@@ -345,22 +405,22 @@ process_opts()
     for opt in "$@"
     do
         case "$opt" in
-            cron)   opt_cron="$opt";;
+            cron)   state[opt_cron]="$opt";;
             force)  
-                    opt_force="$opt"
+                    state[opt_force]="$opt"
                     warn "force option passed, setting fan speed."
                     ;;
             reset)
-                    opt_reset="$opt"
+                    state[opt_reset]="$opt"
                     ;;
-            print)  opt_print="$opt";;
+            print)  state[opt_print]="$opt";;
             help)
                 usage
                 echo "Usage: $(basename "$0") [cron|force|print|help]"
                 exit 0
                 ;;
-            report-only) opt_report_only="$opt";;
-            mail) opt_mail="$opt";;
+            report-only) state[opt_report_only]="$opt";;
+            mail) state[opt_mail]="$opt";;
             *)
                 echo "Erron: Unknown command $opt$"
                 echo
@@ -422,7 +482,6 @@ get_val()
                 ;;
             (-*)
                 echo -n "${first}${name##-}"
-                echo -n "a${first}${name##-}a" >> /var/log/check-ilo.v.log
                 first=" "
                 ;;
             (*)
@@ -437,10 +496,8 @@ get_val()
                     if [ "$index" == "@" ]
                     then
                         echo -n "${first}${val[@]}"
-                        echo -n "b${first}${val[@]}b" >> /var/log/check-ilo.v.log
                     else
                         echo -n "${first}${val[$index]}"
-                        echo -n "c${first}${val[$index]}c" >> /var/log/check-ilo.v.log
                     fi
                     first=" "
                     index="@"
@@ -448,7 +505,7 @@ get_val()
                 ;;
             esac
     done
-    [ -n "$first" ] && ( echo -e '\n'; echo -e 'd\n' >> /var/log/check-ilo.v.log)
+    [ -n "$first" ] && echo -e '\n'
 }
 
 ilo_cmd()
