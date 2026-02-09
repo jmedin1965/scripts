@@ -17,7 +17,6 @@ then
 else
     git clone "$git_repo" "$git_repo_local"
     cd "$git_repo_local"
-    git remote set-url --push origin "$git_pushurl"
 fi
 git remote set-url --push origin "$git_pushurl"
 
