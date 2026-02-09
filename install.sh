@@ -11,9 +11,14 @@ if [ -d "${git_repo_local}/.git" ]
 then
     cd "${git_repo_local}"
     R="`bash -c 'echo $RANDOM'`"
-    tty > /dev/null 2>&1 && R="0"
-    tty > /dev/null 2>&1  || sleep `expr $R % 240`
-    git pull  > /dev/null
+    if tty > /dev/null 2>&1
+    then
+        R="0"
+        git pull
+    else
+        sleep `expr $R % 240`
+        git pull  > /dev/null 2>&1
+    fi
 else
     git clone "$git_repo" "$git_repo_local"
     cd "$git_repo_local"
