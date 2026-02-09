@@ -39,6 +39,7 @@ done
 cron_d=""
 [ -d "/etc/fcron.d" ] && cron_d="/etc/fcron.d"
 [ -d "/etc/cron.d" ]  && cron_d="/etc/cron.d"
+[ -d "/etc/periodic/daily" ]  && cron_d="/etc/periodic/daily"
 if [ -n "${cron_d}" ]
 then
     # cleanup old 2024/02/02
