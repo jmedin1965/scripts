@@ -81,7 +81,7 @@ VERSION=""
 [ -e /etc/version ] && ID=`cat /etc/platform`
 [ -e /etc/version ] && VERSION=`cat /etc/version`
 
-if /usr/bin/tty -s
+if /usr/bin/tty > /dev/null 2>&1
 then
     echo
     echo "ID=$ID"
