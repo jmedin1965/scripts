@@ -5,7 +5,7 @@ git_repo_local="/usr/local/scripts"
 # Add /usr/local /usr/local/scripts to path
 for p in /usr/local $git_repo_local
 do
-	if ! echo $PATH | /usr/bin/grep -q $p/bin ; then
+	if ! echo $PATH | grep -q $p/bin ; then
 	  export PATH=$p/sbin:$p/bin:$PATH
 	fi
 done
