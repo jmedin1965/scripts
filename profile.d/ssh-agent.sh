@@ -78,7 +78,7 @@ then
     # release trap
     trap - INT
 
-    sleep 20
+    sleep 3
 	exit 0
 fi
 

@@ -1,0 +1,266 @@
+#!/bin/bash
+
+main()
+{
+    #DEBUG="1"
+    log="/tmp/bw.log"
+    args=()
+    bw="/usr/local/bin/bw"
+    bw_download_link="https://vault.bitwarden.com/download/?app=cli&platform=linux"
+    tmp="$( /usr/bin/readlink -f "$HOME/.ssh/tmp" )"
+    bw_session_f="git-credential-bw.key"
+    [ -d /run/user/1000 ] && tmp="/run/user/1000"
+    command=""
+    opt=""
+
+    pinentry="$(get_pinentry)"
+
+    do_init
+
+    if [ ! -x "$bw" ]
+    then
+       "$wget" --continue -O "/tmp/bw.zip" "$bw_download_link" 
+       "$unzip" -d "$($dirname "$bw")" "/tmp/bw.zip" bw
+    fi
+
+    if [ -x "$bw" ]
+    then
+        # find what the bw command is, so find the first non option argument
+        for arg in "$@"
+        do
+            case "$arg" in
+                -*) [ -z "$opt" ]     && opt="$arg";;
+                *)  [ -z "$command" ] && command="$arg";;
+            esac
+        done
+
+        info "bw command = $command"
+
+        # if all we want is to lock the vault, then just do it. Don't unlock first
+        if [ "$command" == lock -o "$command" == logout ]
+        then
+            info "do command:" "$bw" "$@"
+            "$bw" "$@"
+
+        elif [ "$command" == unlock ]
+        then
+            check_and_unlock "$opt"
+            info "do command:" "$bw" "$@"
+            "$bw" "$command" --check
+
+        elif [ "$command" != login ]
+        then
+            check_and_unlock "$opt"
+            info "do command:" "$bw" "$@"
+            "$bw" "$@"
+        else
+            info "do command:""$bw"  "$@"
+            "$bw" "$@"
+        fi
+    else
+        err "unable for find real bw cli application, exiting."
+    fi
+}
+
+do_init()
+{
+    local prog
+
+    info "do init stuff"
+    #
+    # Lets just force set PATH to what we want, then we can use which to find these
+    # We exclude /usr/local/scripts/bin since the original bw client should be there
+    #
+    export SHELL="/bin/sh"
+    export PATH="/usr/local/scripts/bin:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
+
+    for prog in pinentry xhost tty rm mount grep fgrep printf wget unzip dirname keyctl
+    do
+        if which -s $prog
+        then
+            eval $prog=\"$(which "$prog")\"
+        else
+            err "Unable for find $prog program"
+        fi
+    done
+
+    info "do init stuff done"
+}
+
+get_pinentry()
+{
+    info "looking for pinentry program"
+
+    #if "$xhost" > /dev/null 2>&1
+    if [ -n "$DISPLAY" ]
+    then
+        info "checking x version of pinentry"
+        [ -x "/usr/bin/pinentry-x11" ]   && echo "/usr/bin/pinentry-x11"   && return
+        [ -x "/usr/bin/pinentry-gtk-2" ] && echo "/usr/bin/pinentry-gtk-2" && return
+    fi
+    info "checking non-x version of pinentry"
+    [ -x "/usr/bin/pinentry-curses" ] && echo "/usr/bin/pinentry-curses" && return
+    [ -x "/usr/bin/pinentry" ]        && echo "/usr/bin/pinentry"        && return
+    err "Unable to find pinenrty, is it installed?"
+}
+
+err()
+{
+    msg "$@"
+    exit 1
+}
+
+msg()
+{
+    if [ -x "$pinentry" ]
+    then
+        echo -e "setdesc $*\nMESSAGE\n" | "$pinentry" -T "$tty" > /dev/null 2>&1
+    else
+        echo "Error:" "$@" > /dev/stderr
+    fi
+    info "msg:" "$@" 
+}
+
+info()
+{
+    if [ -n "$DEBUG" ]
+    then
+        if [ "$DEBUG" -gt 0 ]
+        then
+            echo "Info:" "$@" > /dev/stderr
+            if [ -n "$log" ]
+            then
+                echo "Info:" "$@" >> "$log"
+            fi
+        fi
+    fi
+}
+
+bw_locked()
+{
+    [ "$("$bw" unlock --check | "$fgrep" --count "Vault is unlocked!")" == 0 ]
+}
+
+bw_unlock()
+{
+    local ev="0"
+    local i max
+    local setprompt
+
+    info "try to unlock by user input."
+
+    if [ -x "$pinentry" ]
+    then
+        info "try pinentry"
+
+        # REF: https://unix.stackexchange.com/questions/702683/how-to-call-pinentry-from-bash-script
+        local setdesc="unlock BitWarden CLI - BW"
+
+        i="0"
+        max="3"
+        while [ $i != $max ]
+        do
+            (( i++ ))
+            setprompt="Enter Master Password try ${i} of ${max}:"
+
+            info "$setprompt"
+
+            BW_PASSWORD_ALL="$(echo -e "setdesc $setdesc\nsetprompt $setprompt\nGETPIN\n" | "$pinentry" -T "$tty" 2>&1)"
+            ev="$?"
+
+            BW_PASSWORD="$( echo "$BW_PASSWORD_ALL" | "$grep" "^D " )"
+            BW_PASSWORD=${BW_PASSWORD#D }
+
+            BW_PASSWORD_ERR="$( echo "$BW_PASSWORD_ALL" | "$grep" "^ERR " )"
+            BW_PASSWORD_ERR=${BW_PASSWORD_ERR#ERR }
+
+
+            info "Password is in: BW_PASSWORD, ev=$ev"
+            info "BW_PASSWORD_ERR=$BW_PASSWORD_ERR"
+
+            unset BW_SESSION
+            if [ -n "$BW_PASSWORD" ]
+            then
+                export BW_PASSWORD
+
+                # REF: https://stackoverflow.com/questions/11027679/capture-stdout-and-stderr-into-different-variables
+                {
+                    IFS=$'\n' read -r -d '' BW_SESSION_STDERR;
+                    IFS=$'\n' read -r -d '' BW_SESSION;
+                    (IFS=$'\n' read -r -d '' _ERRNO_; exit ${_ERRNO_});
+                } < <(("$printf" '\0%s\0%d\0' "$("$bw" unlock --raw --passwordenv BW_PASSWORD)" "${?}" 1>&2) 2>&1)
+                ev="$?"
+
+                if [ "$ev" == 0 ]
+                then
+                    unset BW_PASSWORD
+                    export BW_SESSION
+                    info got BW_SESSION=$BW_SESSION
+                    #echo "$BW_SESSION" > "${tmp}/${bw_session_f}"
+                    echo -n "$BW_SESSION" | "$keyctl" padd user "BW_SESSION" @u > /dev/null
+                    break
+                else
+                    unset BW_PASSWORD
+                    msg "unlock failed: $BW_SESSION_STDERR"
+                fi
+            elif [ -n "$BW_PASSWORD_ERR" ]
+            then
+                err "$BW_PASSWORD_ERR"
+
+            else
+                msg "pasword was blank."
+                ev="1"
+            fi
+        done
+    else
+        err "no pinentry program found, please install one"
+    fi
+
+    if [ "$ev" != 0 ] 
+    then
+        info "unable to unlock vault, exiting."
+        exit $ev
+    fi
+
+    return "$ev"
+}
+
+check_and_unlock()
+{
+    local check="$1"
+
+    if "$bw" unlock --check > /dev/null 2>&1
+    then
+        info "bw is unlocked."
+        #[ -n "$BW_SESSION" ] && echo -n "$BW_SESSION" > "${tmp}/${bw_session_f}"
+        [ -n "$BW_SESSION" ] && echo -n "$BW_SESSION" | "$keyctl" padd user "BW_SESSION" @u > /dev/null
+
+    else
+        info "try to use saved session key."
+        export BW_SESSION="$( id=$(keyctl request user "BW_SESSION" @u 2>/dev/null) \
+            && keyctl print "$id")"
+
+        if "$bw" unlock --check > /dev/null 2>&1
+        then
+            info "unlocked by saved key"
+        else
+            info "unlock by saved key failed."
+            [ "$check" == "--check" ] || bw_unlock
+        fi
+    fi
+
+    if "$bw" unlock --check > /dev/null 2>&1
+    then
+        [ "$check" == "--raw" ] && echo "$BW_SESSION"
+    fi
+}
+
+tmp_is_tmpfs()
+{
+    set -- $("$mount" | "$fgrep" " $tmp ")
+    [ "$5" == tmpfs ]
+}
+
+main "$@"
+
+

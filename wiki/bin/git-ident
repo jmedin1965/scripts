@@ -1,0 +1,84 @@
+#!/bin/bash
+#
+# Replaces the following variable strings with git identified data
+#
+# $GitAuthorInfo$
+# $GitAuthorDate$
+# $GitAuthorName$
+# $GitAuthorEmail$
+# $GitTagsLong$
+# $GitTagsShort$
+#
+# Usage: 
+#	git ident init
+# then add "pattern filter=git-ident" to the .gitattribules file at the top of the repo
+# example "README.md filter=git-ident"
+#
+
+GIT_DIR="$(git rev-parse --git-dir)"
+filter="git-ident"
+
+#
+# Default mode is smudge unless $1 == clean
+#
+case "$1" in
+init)
+    git config filter.git-ident.clean  "$filter clean"
+    git config filter.git-ident.smudge "$filter smudge"
+    ;;
+clean)
+	echo clean >> /tmp/log.txt
+    sed \
+       -e "s,\\\$GitAuthorInfo[^$]*,\\\$GitAuthorInfo,g" \
+       -e "s,\\\$GitAuthorDate[^$]*,\\\$GitAuthorDate,g" \
+       -e "s,\\\$GitAuthorName[^$]*,\\\$GitAuthorName,g" \
+       -e "s,\\\$GitAuthorEmail[^$]*,\\\$GitAuthorEmail,g" \
+       -e "s,\\\$GitTagsLong[^$]*,\\\$GitTagsLong,g" \
+       -e "s,\\\$GitTagsShort[^$]*,\\\$GitTagsShort,g" \
+	# Do not remove this comment
+    ;;
+track)
+	if [ -e "${GIT_DIR}/../.gitattributes" ]
+	then
+		if [ -z "$2" ]
+		then
+			echo "Listing tracked paths"
+			/bin/grep -e "\sfilter=${filter}\s" -e "\sfilter=${filter}$" "${GIT_DIR}/../.gitattributes" | while read a b c
+			do
+				echo "    $a"
+			done
+		else
+			shift
+			for file in "$@"
+			do
+				fileNoSpaces="${file// /[[:space:]]}"
+				match="$(
+					/bin/cat "${GIT_DIR}/../.gitattributes" | while read a b c d
+					do
+						[ "$a" == "${fileNoSpaces}" ] && [ "$b" == "filter=${filter}" -o "$c"  == "filter=${filter}" -o "$d" == "filter=${filter}" ] && echo "$a"
+					done
+					)"
+				if [ -z "$match" ]
+				then
+					echo "Tracking $file"
+					echo "$fileNoSpaces filter=git-ident" >> "${GIT_DIR}/../.gitattributes"
+				else
+					echo "$file already supported"
+				fi
+			done
+		fi
+	fi
+	;;
+*)
+	echo smudge >> /tmp/log.txt
+    sed \
+       -e "s,\\\$GitAuthorInfo[^$]*,\\\$GitAuthorInfo: $(git log --pretty=format:"%aN <%ae>: %ad" -1) ,g" \
+       -e "s,\\\$GitAuthorDate[^$]*,\\\$GitAuthorDate: $(git log --pretty=format:"%ad" -1) ,g" \
+       -e "s,\\\$GitAuthorName[^$]*,\\\$GitAuthorName: $(git log --pretty=format:"%aN" -1) ,g" \
+       -e "s,\\\$GitAuthorEmail[^$]*,\\\$GitAuthorEmail: $(git log --pretty=format:"%ae" -1) ,g" \
+       -e "s,\\\$GitTagsLong[^$]*,\\\$GitTagsLong: $(git describe --tags --long 2>/dev/null) ,g" \
+       -e "s,\\\$GitTagsShort[^$]*,\\\$GitTagsShort: $(git describe --tags 2>/dev/null) ,g" \
+	# Do not remove this comment
+    ;;
+esac
+

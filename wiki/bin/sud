@@ -1,0 +1,14 @@
+#!/bin/bash
+
+#
+# REF: https://arstechnica.com/civis/viewtopic.php?t=1189930
+#
+
+if [ "$1" == "-i" ] && [ $# == 1 ]
+then
+	echo yes
+	[ -n "$DISPLAY" ] && export XA="/usr/bin/xauth nextract - ${DISPLAY/*:/:}"
+	exec /usr/bin/sudo "$@"
+else
+	exec /usr/bin/sudo "$@"
+fi

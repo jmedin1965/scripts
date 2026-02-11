@@ -1,0 +1,83 @@
+#!/bin/bash
+
+echo
+echo REF: https://forums.homeseer.com/forum/lighting-primary-technology-plug-ins/lighting-primary-technology-discussion/mcsmqtt-michael-mcsharry/109895-sonoff-basic-wifi-flashing-via-esp-tools
+echo OpenMQTTGateway: https://github.com/1technophile/OpenMQTTGateway/wiki/Sonoff-RFB
+echo OpenMQTTGateway: https://community.openhab.org/t/esp8266-based-433mhz-ir-gateway-bidirectional-with-mqtt-openmqttgateway/14209
+echo OpenMQTTGateway download link: https://github.com/1technophile/OpenMQTTGateway/releases
+
+url="http://ota.tasmota.com/tasmota/release-"
+prog="esptool.py"
+dev="/dev/ttyUSB0"
+ver="6.5.0"
+ver="6.7.1"
+type="sonoff.bin"
+save="image1M.bin"
+file=""
+files="sonoff.bin sonoff-classic.bin firmware.bin tasmota.bin"
+ans=0
+
+echo
+[ ! -d "$ver" ] && echo creating $ver && mkdir "$ver"
+for f in $files
+do
+	if [ -e "$ver/$f" ]
+	then
+		file="$f"
+		echo using $f
+		break
+	fi
+done
+
+if [ -z "$file" ]
+then
+	echo "downloading files for FW $ver"
+	for f in $files
+	do
+		echo try to get ${url}$ver/${f}
+		if  /usr/bin/wget --quiet --continue -O "${ver}/${f}" "${url}$ver/${f}"
+		then
+			echo got ${ver}/${f}
+			file="$file"
+		else
+			echo failed ${ver}/${f}
+			rm -f "${ver}/${f}"
+		fi
+	done
+fi
+	
+echo 
+while [ "$ans" != q ]
+do
+	echo "
+dev = $dev
+
+s)       save flash to $save
+e)       erase flash
+f)       flash with $ver/$type
+cc)      start cutecom
+EasyESP) EasyESP, passwd: configesp
+OMG)     OpenMQTTGateway, password: your_password
+
+q)       quit
+
+commands: sleep 1, ssid DSL-JMSH, password
+info: ipaddress, status 7
+info: rf bridge firmware, type \"RfRaw AAB155\"
+"
+	echo -n "which ? "
+
+	read ans
+
+	case "$ans" in
+	s)        $prog --port $dev read_flash 0x00000 0x100000 $save;;
+	e)	  $prog --port $dev erase_flash;;
+	f)        $prog --port $dev write_flash -fs 1MB -fm dout 0x0 $ver/$type;;
+	EasyESP)  $prog --port $dev write_flash -fs 1MB -fm dout 0x0 /home/jmedin/Downloads/rfbridge/ESPEasy_mega-20181204/bin/ESP_Easy_mega-20181204_normal_ESP8285_1024.bin;;
+	OMG)	  $prog --port $dev write_flash -fs 1MB -fm dout 0x0 /home/jmedin/Downloads/rfbridge/OpenMQTTGateway.ino.bin;;
+	cc)	cutecom&;;
+	q)	;;
+	*)	echo unknown option
+	esac
+done
+

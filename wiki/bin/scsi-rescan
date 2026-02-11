@@ -1,0 +1,20 @@
+
+#
+# REF: https://geekpeek.net/rescan-scsi-bus-on-linux-system/
+#
+
+echo
+
+for dev in /sys/class/scsi_host/*/scan
+do
+	echo host_dev=$dev
+	echo "- - -" > $dev
+done
+
+echo
+
+for dev in /sys/block/sd?/device/rescan
+do
+	echo disk_dev=$dev
+	echo 1 > "$dev"
+done

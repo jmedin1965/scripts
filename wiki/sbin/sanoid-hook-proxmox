@@ -1,0 +1,187 @@
+#!/bin/bash
+
+main()
+{
+    log_f="/tmp/sanoid_hook.log"
+
+    declare -A id_list=() # a list of processed vm ids
+
+    info "start sanoid-hook-proxmox"
+    info "SANOID_SCRIPT   = $SANOID_SCRIPT"
+    info "SANOID_TARGET   = $SANOID_TARGET"
+    info "SANOID_TARGETS  = $SANOID_TARGETS"
+    info "SANOID_SNAPNAME = $SANOID_SNAPNAME"
+    info "SANOID_SNAPNAMES= $SANOID_SNAPNAMES"
+    info "SANOID_TYPES    = $SANOID_TYPES"
+
+    IFS="," read -a SANOID_TARGETS   <<< "$SANOID_TARGETS"
+    IFS="," read -a SANOID_SNAPNAMES <<< "$SANOID_SNAPNAMES"
+
+    case "$SANOID_SCRIPT" in
+        post)    process_targets_post ${SANOID_TARGETS[@]} ;;
+    esac
+
+    info "done sanoid-hook-proxmox"
+}
+
+process_targets_post()
+{
+    local target
+
+    for target in "$@"
+    do
+        case "${target##*/}" in
+            data)
+                info "snap_all_vms_in_target: $target"
+                snap_all_vms_in_target "$target"
+                ;;
+        esac
+    done
+
+    info "done"
+    info
+}
+
+snap_all_vms_in_target()
+{
+    local target
+    local vol
+    local id
+
+    for target in "$@"
+    do
+        info "process target: $target"
+        while read vol
+        do
+            case "$vol" in
+                "$target/"*)
+                    id="$(/bin/basename "$vol")"
+                    id="${id#*-}"
+                    id="${id%%-*}"
+                    info "snap_vm $id, vol = $vol"
+                    snap_vm "$id"
+                    ;;
+            esac
+        done <<< "$(/usr/sbin/zfs list -H -o name)"
+    done
+}
+
+snap_vm()
+{
+    local id
+    local cmd opts
+    local snap_name
+    local arrow snap date time desc
+    local found
+    local out
+
+    info "start snap_vm $@"
+
+    for id in "$@"
+    do
+        info "snap_vm processing $id"
+        if [ "${id_list["$id"]}" == 0 ]
+        then
+            info "$id:" "vm already processed."
+        else
+#            if [ "$id" == 130 ]
+#            then
+#                info "contunue"
+#            elif [ "$id" == 2000 ]
+#            then
+#                info "contunue"
+#            elif [ "$id" == 9001 ]
+#            then
+#                info "contunue"
+#            else
+#                info "temp skip $id"
+#                continue
+#            fi
+
+            # find command to use for this id. qm or pct
+            cmd=""
+            opts=""
+            if [ -e "/etc/pve/qemu-server/${id}.conf" ]
+            then
+                cmd="/usr/sbin/qm"
+                opts=( "--vmstate" )
+            elif [ -e "/etc/pve/lxc/${id}.conf" ]
+            then
+                cmd="/usr/sbin/pct"
+            fi
+
+            if [ -z "$cmd" ]
+            then
+                err "$id: vm not on this host or not found"
+
+            elif [ "$("$cmd" config "$id" | /bin/fgrep -c template:)" -gt 0 ] # check if it's a template
+            then
+                info "vm $id is a template. can't take snapshot of a template"
+            else
+                snap_name="$(sanoid_to_proxmox "${SANOID_SNAPNAMES[0]}")"
+                found="false"
+                info "checking vm $id for snap $snap_name"
+
+                while read arrow snap date time desc
+                do
+                    [ "$snap" == "$snap_name" ] && found="true"
+                done <<< "$("$cmd" listsnapshot "$id")"
+                info "snap $snap_name found=$found"
+
+                if [ "$found" == true ]
+                then
+                    info "$snap_name:" "snapshot already taken."
+                    id_list["$id"]="0"
+                else
+                    info "snap: $id, ${snap_name}"
+                    info "$cmd" snapshot "$id" "$snap_name" "${opts[@]}" --description "$SANOID_TYPES"
+                    out="$("$cmd" snapshot "$id" "$snap_name" "${opts[@]}" --description "$SANOID_TYPES" 2>&1)"
+                    id_list["$id"]="$?"
+                    info "snap ev = ${id_list["$id"]}"
+                    info "out = $out"
+                fi
+            fi
+        fi
+    done
+}
+
+
+# convert a sanoid snap name to a proxmox valied snap name
+sanoid_to_proxmox()
+{
+    local str
+
+    str="$1"
+    str="${str//-/_}"
+    str="${str//:/_}"
+
+    echo "$str"
+}
+
+msg()
+{
+    local date
+
+    if [ $# -lt 2 ]
+    then
+        echo
+        echo >> "$log_f"
+    else
+        date="$(/bin/date)"
+        echo "$date:" "$@"
+        echo "$date:" "$@" >> "$log_f"
+    fi
+}
+
+info()
+{
+    msg "Info:" "$@"
+}
+
+err()
+{
+    msg "Error:" "$@"
+}
+
+main "$@"
+

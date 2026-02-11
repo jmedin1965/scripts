@@ -1,0 +1,20 @@
+#!/bin/bash
+
+dest_host=$(/usr/bin/basename $0)
+dest_host=${dest_host#copy-to-}
+
+while [ $# -gt 0 ]
+do
+	case "$1" in
+	/*)
+		file=$1
+		;;
+	*)
+		file=$(pwd)/$1
+		;;
+	esac
+
+	echo "copy file \"$file\" to \"$dest_host\""
+	/usr/bin/scp "$file" "$dest_host:$file"
+	shift
+done

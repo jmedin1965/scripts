@@ -1,0 +1,75 @@
+#!/bin/bash
+#
+#
+
+#
+#Global vars
+#
+GIT_DIR="$(git rev-parse --git-dir)"
+pwd="$(pwd)"
+
+log()
+{       
+        echo '***' "$@"
+}
+
+error()
+{
+	log "$@" 1>&2
+}
+
+die()
+{       
+	error "$@"
+	error "exiting."
+        exit 1
+}
+
+set_commands()
+{
+	git="$(set_command git /usr/bin/git)"
+	mv="$(set_command mv /bin/mv)"
+	rm="$(set_command rm /bin/rm)"
+	chmod="$(set_command chmod /bin/chmod)"
+	basename="$(set_command basename /usr/bin/basename)"
+	dirname="$(set_command dirname /usr/bin/dirname)"
+	stat="$(set_command stat /usr/bin/stat)"
+}
+
+set_command()
+{
+	local alias
+
+	alias="$1"
+	shift
+
+	while [ $# -gt 0 ]
+	do
+		[ -x "$1" ] && echo "$1" && return 0
+		shift
+	done
+
+	echo "echo unable to find command $alias"
+}
+
+do_status_info()
+{
+	echo "Information:"
+	echo "    GIT_DIR   = $GIT_DIR"
+	echo "    pwd       = $pwd"
+	echo
+}
+
+do_status_aliases()
+{
+	echo "Command aliases:"
+	echo "    git       = $git"
+	echo "    mv        = $mv "
+	echo "    rm        = $mv "
+	echo "    chmod     = $chmod"
+	echo "    stat      = $stat"
+	echo "    basename  = $basename"
+	echo "    dirname   = $dirname"
+	echo
+}
+

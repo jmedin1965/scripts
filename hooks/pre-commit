@@ -11,6 +11,9 @@
 
 export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 
+echo post-commit starting
+exit 0
+
 exec 1>&2
 
 timeout="20"

@@ -1,0 +1,139 @@
+#!/bin/bash
+
+#
+# Release Info
+#
+# /etc/system-release
+# IPFire 2.19 (i586) - core116
+#
+# git diff --numstat /etc/system-release
+#1       1       etc/system-release
+#
+#git diff --quiet /etc/system-release ; echo $?
+#
+
+msg=""
+logf=""
+screen="/dev/null"
+mailTo="jmedin@joy.com"
+progName="$(/usr/bin/basename "$0")"
+hostname="$(/bin/hostname)"
+#hostdomain="$(/bin/hostname -f)"
+hostdomain="jmsh-home.com"
+
+log_init()
+{
+	msg=""
+	logf="$1"
+	local logd="$(/usr/bin/dirname "$logf")"
+
+	/usr/bin/tty -s  && screen="/dev/stdout"
+	[ ! -d "$logd" ] && /bin/mkdir -p "$logd"
+	[ -n "$logf" ]   && log "logging to: $logd"
+}
+
+#
+# Log a message
+#
+# acepts string and command line arguments or from stdin
+#
+# logs to;
+#
+# log file = $logf - default no file loggimg
+# log screen = $screen - default /dev/null
+# log variable = $msg - stores all log to $mgs variable
+#
+log()
+{
+	local str
+
+	if [ $# == 0 ]
+	then
+		read str
+	else
+		str="$*"
+	fi
+
+	while [ -n "$str" ]
+	do
+		date="$(/bin/date "+%b %d %H:%M:%S")"
+		echo "${date}: ${progName}: $str" >> "$screen"
+		[ -n "$logf" ] && echo "${date}: ${progName}: $str" >> "$logf"
+		msg="${msg}${date}: ${progName}: $str
+"
+		str=""
+		[ $# == 0 ] && read str
+	done
+
+}
+
+mailAlias()
+{
+	local to=""
+
+	while [ $# != 0 ]
+	do
+		ifs="$IFS"
+		IFS=","
+		for m in $1
+		do
+			[ "$m" == root ] && m="$mailTo"
+
+			if [ -z "$to" ]
+			then
+				 to="$m"
+			else
+				 to="${to},$m"
+			fi
+		done
+		IFS="$ifs"
+
+		shift
+	done
+
+	[ -n "$to" ] || to="$mailTo"
+
+	echo "$to"
+}
+
+mail()
+{
+	local subject
+	local to
+	local doOpts="yes"
+
+        if [ -x /usr/bin/mail ]
+        then
+		log "mail using /usr/bin/mail $@"
+                /usr/bin/mail "$@"
+
+        elif [ -x /usr/local/bin/sendEmail ]
+        then
+		while [ "$doOpts" == yes -a $# != 0 ]
+		do
+			case "$1" in
+				"-s")	shift
+					subject="$1"
+					shift
+					;;
+				*)	doOpts="done"
+					;;
+			esac
+
+		done
+
+		to="$(mailAlias "$@")"
+		
+		log "mail using /usr/local/bin/sendEmail"
+		log "mail with subject=$subject, to=$to"
+		/usr/local/bin/sendEmail \
+			-f root@${hostdomain} \
+                        -t "$to" \
+                        -s smtp.dodo.com \
+			-o message-file=/dev/stdin \
+                        -u "$subject"
+	else
+		log "no mail program found"
+        fi
+}
+

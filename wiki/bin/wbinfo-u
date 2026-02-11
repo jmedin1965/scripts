@@ -1,0 +1,14 @@
+#!/bin/bash
+
+f='%-45s %-13s %-3s %-7s %s \n'
+printf "$f" SID TYPE NUM UID NAME
+wbinfo -u | sed 's/\\/\\\\/' | while read "name"
+do
+	sidl="$(wbinfo -n "$name" 2>/dev/null )"
+	sid="$(set -- $sidl ; echo "$1")"
+	type="$(set -- $sidl ; echo "$2")"
+	num="$(set -- $sidl ; echo "$3")"
+	uid="$(wbinfo -S "$sid" 2>/dev/null )"
+	printf "$f" "$sid" "$type" "$num" "$uid" "$name"	
+done
+
