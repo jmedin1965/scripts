@@ -84,6 +84,7 @@ VERSION=""
 [ -e /etc/os-release ] && . /etc/os-release
 [ -e /etc/version ] && ID=`cat /etc/platform`
 [ -e /etc/version ] && VERSION=`cat /etc/version`
+[ -e /etc/alpine-release ] && VERSION=`cat /etc/alpine-release`
 
 if /usr/bin/tty > /dev/null 2>&1
 then
