@@ -66,4 +66,5 @@ set t_u7=
 " REF: https://vi.stackexchange.com/questions/9249/how-do-i-restore-visual-mode-selection-highlighting
 highlight Visual cterm=reverse ctermbg=NONE
 
+colorscheme desert
 
