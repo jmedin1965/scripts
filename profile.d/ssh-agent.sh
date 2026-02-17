@@ -45,17 +45,17 @@ then
 	elif [ -n "$SSH_AUTH_SOCK_ORIG" ]
 	then
 		msg "  remove SSH_AUTH_SOCK that this session was using $SSH_AUTH_SOCK_ORIG"
-		msg "  /bin/rm -f $SSH_AUTH_SOCK_ORIG"
+		/bin/rm -f $SSH_AUTH_SOCK_ORIG
         export SSH_AUTH_SOCK=""
         for SSH_AUTH_SOCK_ORIG in `/bin/ls -c -r "$AUTH_SOCK_D"/*`
 		do
 			if [ -S "$SSH_AUTH_SOCK_ORIG" ]
 			then
-                msg
+                msg "   $SSH_AUTH_SOCK_ORIG is a socket"
                 if [ -z "$SSH_AUTH_SOCK" ]
                 then
                     export SSH_AUTH_SOCK="$SSH_AUTH_SOCK_ORIG"
-                    msg "   testing: $SSH_AUTH_SOCK"
+                    msg "    testing: $SSH_AUTH_SOCK"
                     ssh-add -l 2>/dev/null >/dev/null   # test if local socket is active
                     if [ $? -ge 2 ] # if not active
                     then
