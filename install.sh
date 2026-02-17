@@ -44,7 +44,6 @@ done
 cron_d=""
 [ -d "/etc/fcron.d" ] && cron_d="/etc/fcron.d"
 [ -d "/etc/cron.d" ]  && cron_d="/etc/cron.d"
-[ -d "/etc/periodic/daily" ]  && cron_d="/etc/periodic/daily"
 if [ -n "${cron_d}" ]
 then
     # cleanup old 2024/02/02
@@ -85,6 +84,7 @@ VERSION=""
 [ -e /etc/os-release ] && . /etc/os-release
 [ -e /etc/version ] && ID=`cat /etc/platform`
 [ -e /etc/version ] && VERSION=`cat /etc/version`
+[ -e /etc/alpine-release ] && VERSION=`cat /etc/alpine-release`
 
 if /usr/bin/tty > /dev/null 2>&1
 then
