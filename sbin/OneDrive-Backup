@@ -1,0 +1,257 @@
+#!/bin/bash
+
+PATH="/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
+
+name="$(/bin/basename "$0")"
+
+sources_f="/etc/${name}.conf"
+
+skipped=""  # keep trak of skipped syns if we are looking for last state
+
+dryrun="false"
+
+opts=(
+    "--create-empty-src-dirs"
+    "--update"
+    "--fast-list"
+)
+
+sync_prog="/usr/bin/rclone"
+sync_cmd="sync"
+
+log_f=""
+state="" # where we left off before
+state_f="/var/run/${name}.state"
+[ -e "$state_f" ] && state="$(head -n 1 "/var/run/${name}.state")"
+[ -e "$state_f" ] && log_f="$(tail -n 1 "/var/run/${name}.state")"
+
+SYNC_PID=""
+
+# a function to trap exit
+ctrl_c() {
+
+    msg "** Trapped CTRL-C"
+
+    if [ -n "$SYNC_PID" ]
+    then
+        if ps -p "$SYNC_PID" > /dev/null
+        then
+            msg "Process $SYNC_PID is running"
+            kill "$SYNC_PID"
+        else
+            msg "Process $SYNC_PID is not running"
+        fi
+    else
+        msg "No rsync process is running"
+    fi
+
+    msg
+    df -h
+    msg
+
+    msg "trap done, exiting"
+    exit 1
+}
+# trap ctrl-c and call ctrl_c()
+
+
+no_new_line="false"
+msg()
+{
+    local str=""
+
+    if [ -n "$*" -a "$no_new_line" == "false" ]
+    then
+        str="$(date): "
+    fi
+
+    if [ "$1" == "-n" ]
+    then
+        shift
+        echo -n "$str$@"
+        no_new_line="true"
+    else
+        echo "$str$@"
+    fi
+}
+
+do_sync()
+{
+    local from="$1"
+    local ev="0"
+
+    log_f="/var/log/${name}-${from//\//_}.log"
+
+    local run=("$sync_prog" "$sync_cmd" "$@" "${opts[@]}" "--log-file=$log_f")
+
+    if [ -n "$state" ]
+    then
+        if [ "$*" == "$state" ]
+        then
+            state=""
+        else
+            skipped="$skipped
+$*"
+            msg "  skip: ${run[@]}"
+            return
+        fi
+    fi
+
+    echo "$*" > "$state_f"
+    echo "$log_f" >> "$state_f"
+
+    trap ctrl_c EXIT SIGINT SIGTERM SIGHUP SIGQUIT
+
+    if [ "$dryrun" == "true" ]
+    then
+        msg "dryrun: ${run[@]}"
+        sleep 3
+    else
+
+        msg "   run: ${run[@]}"
+        "$sync_prog" "$sync_cmd" "$@" "${opts[@]}" "--log-file=$log_f"&
+
+        RSYNC_PID="$!"
+        wait "$RSYNC_PID"
+        ev="$?"
+
+    fi
+
+    [ "$ev" == 0 ] && rm -f "$state_f"
+    RSYNC_PID=""
+
+    #trap - EXIT SIGINT SIGTERM SIGHUP SIGQUIT
+
+    return "$ev"
+}
+
+
+start()
+{
+    if tty -s
+    then
+        exec > >(tee -a "/var/log/${name}.log") 2>&1
+        opts+=("--progress") # show progress if we have a tty
+    else
+        exec >> "/var/log/${name}.log" 2>&1
+    fi
+
+    msg "Checking for $sync_prog updates"
+    "$sync_prog" selfupdate
+
+    if [ ! -e "$sources_f" ]
+    then
+        msg "$sources_f: conf file does not exist."
+        exit 1
+    fi
+
+    start-stop-daemon --status --pidfile "/var/run/${name}.pid"
+    if [ "$?" -eq 0 ]
+    then
+        echo "$name is already running with PID=$(</var/run/${name}.pid)"
+    else
+        echo "$$" > "/var/run/${name}.pid"
+
+        # sync pass 1, start from where we left off
+        while read line
+        do
+            if [ ! -z "${line//[[:space:]]/}" ]
+            then
+                eval args=( $line )
+                do_sync "${args[@]}"
+            fi
+        done <<< "$(< "$sources_f")"
+
+        msg "Do Skipped."
+        rm -f "$state_f"
+
+        # now do what we skipped
+        while read line
+        do
+            if [ ! -z "${line//[[:space:]]/}" ]
+            then
+                eval do_sync $line
+            fi
+        done <<< "$skipped"
+    fi
+
+}
+
+stop()
+{
+    start-stop-daemon --stop --pidfile "/var/run/${name}.pid"
+}
+
+
+case "$1" in
+    dryrun)
+        dryrun="true"
+        start
+        ;;
+    restart)
+        start
+        stop
+        ;;
+    start)
+        start
+        ;;
+    stop)
+        stop
+        ;;
+    status)
+        start-stop-daemon --status --pidfile "/var/run/${name}.pid"
+        if [ "$?" -eq 0 ]
+        then
+            echo "$name is running with PID=$(</var/run/${name}.pid)"
+        else
+            echo "$name is not running"
+        fi
+        [ -n "$state" ] && echo "still working on: $state"
+        [ -n "$log_f" ] && echo "        log file: $log_f"
+        [ -e "$log_f" ] && tail -n 15 "$log_f"
+        ;;
+    update)
+        "$sync_prog" selfupdate
+        ;;
+    version)
+        "$sync_prog" version
+        ;;
+    less)
+        start-stop-daemon --status --pidfile "/var/run/${name}.pid"
+        if [ "$?" -eq 0 ]
+        then
+            str="$name is running with PID=$(</var/run/${name}.pid)"
+        else
+            str="$name is not running"
+        fi
+
+        [ -n "$state" ] && str="$str
+still working on: $state"
+
+        [ -n "$log_f" ] && str="$str
+        log file: $log_f"
+
+        if [ -e "$log_f" ]
+        then
+            echo "$str" | cat - "$log_f" | /bin/less
+        else
+            echo "$str"
+        fi
+        ;;
+    tail)
+        start-stop-daemon --status --pidfile "/var/run/${name}.pid"
+        if [ "$?" -eq 0 ]
+        then
+            echo "$name is running with PID=$(</var/run/${name}.pid)"
+        else
+            echo "$name is not running"
+        fi
+        [ -n "$state" ] && echo "still working on: $state"
+        [ -n "$log_f" ] && echo "        log file: $log_f"
+        [ -e "$log_f" ] &&  /bin/tail -f "$log_f"
+        ;;
+    *)  
+        echo "Usage: $name [less|restart|start|stop|status|tail|update|version|dryrun]"
+        ;;
+esac
+
