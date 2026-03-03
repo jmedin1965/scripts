@@ -1,0 +1,173 @@
+#!/bin/bash
+
+export PATH="/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
+
+prog="$(basename "$0")"
+cache_d="/var/cache/rclone"
+
+rclone_opts=(
+    "--config"
+    "/root/.config/rclone/rclone.conf"
+    "--vfs-cache-mode"
+    "full"
+    "--dir-cache-time"
+    "5m"
+    "--uid"
+    "1000"
+    "--gid"
+    "1000"
+    "--dir-perms"
+    "0775"
+    "--file-perms"
+    "0664"
+    "--umask"
+    "005"
+    "--allow-other"
+    "--cache-dir"
+    "$cache_d/$2"
+    "--vfs-cache-min-free-space"
+    "10g"
+)
+
+main()
+{
+    cmd="$1"
+    shift
+
+    init
+
+    case "$cmd" in
+        start)      start "$@";;
+        stop)       stop "$@";;
+        restart)
+            stop "$@"
+            start "$@"
+            ;;
+        install)    install "$@";;
+        remove)     remove "$@";;
+        add)        add "$@";;
+        *)
+            err "$cmd: command not supported"
+            usage
+            ;;
+    esac
+}
+
+usage()
+{
+    echo "Usage: $prog: [start|stop|restart|install|uninstall|add] <service instance to start or stop>"
+    echo "
+Where:
+  add service... - add a service
+"
+}
+
+err()
+{
+    echo "$@" > /dev/stderr
+}
+
+start()
+{
+    [ -z "$1" ] && err "Usage: $prog start [service name]" && exit 1
+
+    echo "$rclone"  mount $1: /mnt/$1 "${rclone_opts[@]}" -vv
+    "$rclone" mount "$1:" "/mnt/$1" "${rclone_opts[@]}" -vv
+}
+
+stop()
+{
+    [ -z "$1" ] && err "Usage: $prog stop [service name]" && exit 1
+
+    echo "$fusermount" -u "/mnt/$1"
+    "$fusermount" -u "/mnt/$1"
+}
+
+init()
+{
+    fusermount="$(which fusermount)"
+    fusermount="$(which fusermount3)"
+    rclone="$(which rclone)"
+   
+    [ -z "$fusermount" ] && err "unable to find fusermount, exiting." && exit 1
+    [ -z "$rclone" ]     && err "unable to find rclone, exiting." && exit 1
+
+    mkdir -p "$cache_d"
+}
+
+install()
+{
+    local tmp_name="/etc/systemd/system/rclone-mount@.service"
+
+    cat > "$tmp_name" << END
+[Unit]
+Description=Rclone Mount Service for Instance %i
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=root
+END
+    echo -n "ExecStart=$rclone mount \"%i:\" \"/mnt/%i\"" >> "$tmp_name"
+
+    for opt in "${rclone_opts[@]}"
+    do
+        echo -ne " \\\\\n    \"$opt\"" >> "$tmp_name" 
+    done
+
+    echo "" >> "$tmp_name"
+
+    cat >> "$tmp_name"  << END
+ExecStop=$fusermount -u "/mnt/%i"
+Restart=on-abort
+
+[Install]
+WantedBy=default.target
+END
+
+    systemctl daemon-reload
+
+    if [ -n "$1" ]
+    then
+        systemctl enable rclone-mount@$1
+        systemctl start rclone-mount@$1
+    else
+        echo "don't forger to enable and start your instance by issuing the following command"
+        systemctl enable rclone-mount@instance
+        systemctl start rclone-mount@instance
+        echo where instance is your rclone instance name
+    fi
+}
+
+add()
+{
+    local s
+
+    for s in "$@"
+    do
+        mkdir "/mnt/$s"
+        systemctl enable "rclone-mount@$s"
+        #systemctl start "rclone-mount@$s"
+        echo "don't forget to set up the cached dir with plenty of disk space at $cache_d/$s"
+    done
+}
+
+remove()
+{
+    local tmp_name="/etc/systemd/system/rclone-mount@.service"
+    local s
+
+    for s in "$@"
+    do
+        systemctl disable rclone-mount@$s
+    done
+
+    rm -f "$tmp_name"
+    systemctl daemon-reload
+}
+
+
+main "$@"
+
+
