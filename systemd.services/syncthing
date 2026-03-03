@@ -1,0 +1,103 @@
+
+
+OTHER_DEVICE_ID="BBJES6X-JUH4DS6-IPMTFZ3-SNTHVCH-I3A56MM-5J6OIMZ-RA2NNWH-HMPVCQZ"
+RemoteDeviceName="hassio002"
+
+usage()
+{
+        echo "Usage: $prog [id|init|pending|status]"
+        echo "Where:"
+        echo "    id)    Show this client ID"
+        echo "  init)    Initialise a new server, must accept on the remote initiator"
+        echo "  install) Install sincthing on this system"
+        echo "  status)  display server status including perding folder share requests"
+        echo "  pending) show pending folder requests"
+}
+
+case "$1" in
+    add)
+        FOLDER_ID="$2"
+        FOLDER_LABEL="$3"
+        FOLDER_PATH="$4"
+        if [ -z "$FOLDER_ID" ] || [ -z "$FOLDER_LABEL" ] || [ -z "$FOLDER_PATH" ]
+        then
+            echo "  FOLDER_ID    = $FOLDER_ID"
+            echo "  FOLDER_LABEL = $FOLDER_LABEL"
+            echo "  FOLDER_PATH  = $FOLDER_PATH"
+            echo "error: must supply id, label an dpath"
+            usage
+        else
+            syncthing cli config folders add --id "$FOLDER_ID" --label "$FOLDER_LABEL" --path "$FOLDER_PATH"
+            sleep 3
+            syncthing cli config folders "$FOLDER_ID" devices add --device-id "$OTHER_DEVICE_ID"
+        fi
+        ;;
+
+    id)
+        syncthing cli show system | jq .myID
+        ;;
+    init)
+        syncthing cli config devices add --device-id "$OTHER_DEVICE_ID" --name "RemoteDeviceName"
+        syncthing cli config devices "$OTHER_DEVICE_ID" introducer set true
+        ;;
+    install)
+        # REF: https://apt.syncthing.net/
+        if [ -e /usr/bin/syncthing -a "$2" != "force" ]
+        then
+            echo "syncthing already installed at /usr/bin/syncthing. Use \"install force\" to force install."
+        else
+            mkdir -p /etc/apt/keyrings
+            rm -f /tmp/syncthing-archive-keyring.gpg
+            curl -L -o /tmp/syncthing-archive-keyring.gpg https://syncthing.net/release-key.gpg
+            if [ $? == 0 ]
+            then
+                mv -f /tmp/syncthing-archive-keyring.gpg /etc/apt/keyrings/syncthing-archive-keyring.gpg
+                echo "deb [signed-by=/etc/apt/keyrings/syncthing-archive-keyring.gpg] https://apt.syncthing.net/ syncthing stable-v2" | \
+                    tee /etc/apt/sources.list.d/syncthing.sources
+                apt update
+                apt install syncthing
+
+                useradd --system -m -u 900 -U syncthing-service
+                systemctl enable syncthing@syncthing-service.service
+                systemctl start syncthing@syncthing-service.service
+            else
+                echo "download of syncthing gpg repo key failed"
+            fi
+        fi
+
+        if [ -e /usr/bin/syncthing ]
+        then
+            uid="$(id -u "syncthing-service" 2> /dev/null)"
+            gid="$(id -g "syncthing-service" 2> /dev/null)"
+            if [ -n "$uid" ]
+            then
+                echo "user syncthing-service already exists with uid=$uid and gid=$gid."
+            else
+                useradd --system -m -u 900 -U syncthing-service
+            fi
+
+            if systemctl is-enabled syncthing@syncthing-service.service &> /dev/null
+            then
+                echo "syncthing@syncthing-service.service is already enabled."
+                echo
+                echo "use the following commands to enable more:"
+                echo "  useradd --system -m -u 900 -U syncthing-service"
+                echo "  systemctl enable syncthing@syncthing-service.service"
+                echo "  systemctl start syncthing@syncthing-service.service"
+            else
+                systemctl enable syncthing@syncthing-service.service
+                systemctl start syncthing@syncthing-service.service
+            fi
+        fi
+        ;;
+    status)
+        syncthing cli config devices "$OTHER_DEVICE_ID" dump-json | jq
+        ;;
+    pending)
+        syncthing cli show pending folders
+        ;;
+    *)
+        usage
+        ;;
+esac
+
