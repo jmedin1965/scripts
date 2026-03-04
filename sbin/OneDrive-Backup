@@ -19,6 +19,7 @@ opts=(
 sync_prog="/usr/bin/rclone"
 sync_cmd="sync"
 
+log_master_f="/var/log/${name}.log"
 log_f=""
 state="" # where we left off before
 state_f="/var/run/${name}.state"
@@ -31,13 +32,14 @@ SYNC_PID=""
 ctrl_c() {
 
     msg "** Trapped CTRL-C"
-
+echo "trap SYNC_PID=$SYNC_PID" >> /tmp/log.log
     if [ -n "$SYNC_PID" ]
     then
         if ps -p "$SYNC_PID" > /dev/null
         then
             msg "Process $SYNC_PID is running"
             kill "$SYNC_PID"
+echo "trap kill SYNC_PID=$SYNC_PID" >> /tmp/log.log
         else
             msg "Process $SYNC_PID is not running"
         fi
@@ -68,9 +70,11 @@ msg()
     if [ "$1" == "-n" ]
     then
         shift
+        echo -n "$str$@" >> "$log_master_f"
         echo -n "$str$@"
         no_new_line="true"
     else
+        echo "$str$@" >> "$log_master_f"
         echo "$str$@"
     fi
 }
@@ -100,7 +104,10 @@ $*"
     echo "$*" > "$state_f"
     echo "$log_f" >> "$state_f"
 
-    trap ctrl_c EXIT SIGINT SIGTERM SIGHUP SIGQUIT
+    if ! tty -s
+    then
+        trap ctrl_c EXIT SIGINT SIGTERM SIGHUP SIGQUIT
+    fi
 
     if [ "$dryrun" == "true" ]
     then
@@ -109,12 +116,18 @@ $*"
     else
 
         msg "   run: ${run[@]}"
-        "$sync_prog" "$sync_cmd" "$@" "${opts[@]}" "--log-file=$log_f"&
 
-        RSYNC_PID="$!"
-        wait "$RSYNC_PID"
-        ev="$?"
-
+        if tty -s
+        then
+            echo "$sync_prog" "$sync_cmd" "$@" "${opts[@]}"
+            "$sync_prog" "$sync_cmd" "$@" "${opts[@]}"
+            ev="$?"
+        else
+            "$sync_prog" "$sync_cmd" "$@" "${opts[@]}" "--log-file=$log_f"&
+            RSYNC_PID="$!"
+            wait "$RSYNC_PID"
+            ev="$?"
+        fi
     fi
 
     [ "$ev" == 0 ] && rm -f "$state_f"
@@ -128,14 +141,19 @@ $*"
 
 start()
 {
+echo 10
+read ans
     if tty -s
     then
-        exec > >(tee -a "/var/log/${name}.log") 2>&1
         opts+=("--progress") # show progress if we have a tty
+echo no tty
+read ans
     else
-        exec >> "/var/log/${name}.log" 2>&1
+echo tty
+read ans
+        exec > /dev/null 2 > "$log_master_f"
     fi
-
+read ans
     msg "Checking for $sync_prog updates"
     "$sync_prog" selfupdate
 
