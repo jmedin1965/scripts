@@ -1,9 +1,14 @@
 #!/bin/bash
 
 
-port="8384"
+default_port="8384"
 TUN_PID=""
 BROWSER_PID=""
+[ -z "$DISPLAY" ] && export DISPLAY=":0"
+prog="$(basename "$0")"
+conf="$HOME/.$prog.conf"
+host=""
+last_host=""
 
 # a function to trap CTRL_C since ssh-add times out or waits forever
 ctrl_c() {
@@ -16,53 +21,72 @@ trap ctrl_c INT
 
 main()
 {
+    if [ ! -e "$conf" ]
+    then
+        touch "$conf"
+    fi
+
+    mapfile -t hosts < "$conf"
+
     while :
     do
-        if [ $# == "0" ]
+        if [ "${#hosts[@]}" == "0" ]
         then
-            echo -n "Connect to which host, or 'q', to quit: "
-            read result
-            set -- "$result"
-
-        elif [ $# == 1 -a -z "$TUN_PID" ]
-        then
-            result="$1"
+            echo -n "Connect to which host:port or just host, default port is $default_port, or 'q', to quit: "
+            read host
+            if [ "$host" != "q" ]
+            then
+                echo "$host" >> "$conf"
+            fi
         else
-            menu "$@"
+            menu "${hosts[@]}"
+            clear
         fi
 
-        if [ "$result" == "q" ]
+        if [ "$host" == "q" ]
         then
             echo $TUN_PID=$TUN_PID
             [ -n "$TUN_PID" ] && kill -0 "$TUN_PID" && kill $TUN_PID
             exit 0
 
-        elif [ "$result" == "+" ]
+        elif [ "$host" == "+" ]
         then
-            echo -n "Add which host: "
-            read result
-            set -- "$@" "$result"
+            echo -n "Add which host:port or just host, default port is $default_port, or 'q', to quit: "
+            read host
+            echo "$host" >> "$conf"
         fi
 
         [ -n "$TUN_PID" ] && kill -0 "$TUN_PID" && kill $TUN_PID && sleep 3
 
-        echo "port $port from host $result will be available locally"
-        ssh -L 8384:localhost:8384 -J jmedin@192.168.10.127 -A root@$result -N &
+        last_host="$host"
+        port="${host##*:}"
+        echo port=$port
+        [ -z "$port" -o "$port" == "$host" ] && port="$default_port"
+        echo port=$port
+
+        host="${host%%:*}"
+        echo host=$host
+
+        echo "port $port from host $host will be available locally"
+        echo "DISPLAY=$DISPLAY"
+        echo "conf=$conf"
+        pwd
+        echo HOME=$HOME
+
+        ssh -L $default_port:localhost:$port -J jmedin@192.168.10.127 -A root@$host -N &
+        TUN_PID="$!"
+
         echo tunell started in background
         sleep 3
-        TUN_PID="$!"
         
         new_window="--new-window"
         if [ -z "$BROWSER_PID" ] || ! kill -0 "$BROWSER_PID"
         then
-            /snap/bin/chromium $new_window "https://localhost:$port"
+            /snap/bin/chromium $new_window "https://localhost:$default_port"
             BROWSER_PID="$(pgrep -f chromium | tail -n 1)"
         fi
 
         #wait $TUN_PID
-
-        [ $# -gt 1 ] || exit 0
-
     done
 }
 
@@ -78,10 +102,10 @@ menu()
         shift
     done
     #[ -n "$TUN_PID" ] && menu["kill"]="kill running tunnel with PID=$TUN_PID"
-    #menu["q"]="quit"
+    menu["q"]="quit"
     #menu["b"]="$BROWSER_PID"
 
-    result=""
+    host=""
     if which dialog > /dev/null
     then
         radiolist="radiolist"
@@ -89,7 +113,7 @@ menu()
         radiolist="radiolist_txt"
     fi
 
-    result="$($radiolist --title "DIALOG RADIOLIST" --backtitle "A user-built list" --extra-button --extra-label "Add")"
+    host="$($radiolist --title "DIALOG RADIOLIST" --backtitle "A user-built list" --extra-button --extra-label "Add")"
     retval="$?"
 
     case $retval in
@@ -110,7 +134,7 @@ menu()
       *)
         echo "Unknown retval: $retval"
         result="q"
-        echo -n pause
+        echo -n "Hit ENTER to contunue"
         read ans
         ;;
     esac
@@ -189,7 +213,7 @@ radiolist()
         fi
     done
 
-    result="$(dialog "$@" --stdout --radiolist "Nextcloud OCC Menu" 0 0 12 "${m[@]}")"
+    result="$(dialog "$@" --stdout --radiolist "ssh tunnel port=$default_port, host=$last_host" 0 0 12 "${m[@]}")"
     retval=$?
     echo "$result"
     return "$retval"

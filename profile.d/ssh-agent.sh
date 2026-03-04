@@ -26,12 +26,14 @@ export AUTH_SOCK_D=~/.ssh/ssh-agent.sock.d              # a directory containing
 export SSH_AGENT="ssh-agent"                            # the linux ssh-agent
 
 # WSL2 and bitwarden-agent
+msg "check WSL"
 WSL2="false"
 if [ "`uname -r | tail -c 5`" == WSL2 ] && [ -z "$SSH_AUTH_SOCK" ] # even on WSL, we use SSH_AUTH_SOCK if we have one
 then
 	WSL2="true"
 	export BW_SSH_AUTH_SOCK=~/.ssh/bitwarden-ssh-agent.sock
 	export BW_SSH_AUTH_SOCK=~/.var/app/com.bitwarden.desktop/data/.bitwarden-ssh-agent.sock
+    msg "  We are running on WSL: BW_SSH_AUTH_SOCK=$BW_SSH_AUTH_SOCK"
 fi
 
 
@@ -98,6 +100,7 @@ msg "SUDO_USER=$SUDO_USER"
 msg "USER=$USER"
 msg "SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
 # WSL2, much easier now with bitwarder ssh-agent
+msg "Do WSL2 stuff"
 if [ "$WSL2" == true ]
 then
     msg
@@ -181,11 +184,11 @@ then
         msg
         msg "  SSH_AUTH_SOCK:$SSH_AUTH_SOCK != AUTH_SOCK:$AUTH_SOCK"
         # check if the one passed is active, if it is, use this one
-        msg "  SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
-        if [ "$WSL2" != true ]
-        then
-            ssh-add -l 2>/dev/null >/dev/null   # test if local socket is active
-        fi
+#        if [ "$WSL2" != true ]
+#        then
+#            ssh-add -l 2>/dev/null >/dev/null   # test if local socket is active
+#        fi
+        ssh-add -l 2>/dev/null >/dev/null   # test if local socket is active
         if [ $? -ge 2 ] && [ "$WSL2" != true ]  # if not active
         then
             msg

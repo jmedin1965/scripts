@@ -1,4 +1,10 @@
 ip=""
+
+if [ -z "$DISPLAY" ]
+then
+    export DISPLAY=:0
+fi
+
 if [ -z "$DISPLAY" -a -e "/mnt/c/WINDOWS/system32/netstat.exe" ]
 then
   pwd="$(/bin/pwd)"
