@@ -10,8 +10,14 @@ rclone_opts=(
     "/root/.config/rclone/rclone.conf"
     "--vfs-cache-mode"
     "full"
+    "--vfs-cache-max-age"
+    "1560h"
+    "--vfs-cache-min-free-space"
+    "10g"
     "--dir-cache-time"
-    "5m"
+    "60m"
+    "--poll-interval"
+    "30s"
     "--uid"
     "1000"
     "--gid"
@@ -24,9 +30,7 @@ rclone_opts=(
     "005"
     "--allow-other"
     "--cache-dir"
-    "$cache_d/$2"
-    "--vfs-cache-min-free-space"
-    "10g"
+    "$cache_d/%i"
 )
 
 main()

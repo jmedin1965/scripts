@@ -1,4 +1,4 @@
-
+#!/bin/bash
 
 OTHER_DEVICE_ID="BBJES6X-JUH4DS6-IPMTFZ3-SNTHVCH-I3A56MM-5J6OIMZ-RA2NNWH-HMPVCQZ"
 RemoteDeviceName="hassio002"
@@ -52,8 +52,16 @@ case "$1" in
             if [ $? == 0 ]
             then
                 mv -f /tmp/syncthing-archive-keyring.gpg /etc/apt/keyrings/syncthing-archive-keyring.gpg
-                echo "deb [signed-by=/etc/apt/keyrings/syncthing-archive-keyring.gpg] https://apt.syncthing.net/ syncthing stable-v2" | \
+
+                apt modernize-sources
+
+                echo "Types: deb
+URIs: http://apt.syncthing.net/
+Suites: syncthing
+Components: stable-v2
+Signed-By: /etc/apt/keyrings/syncthing-archive-keyring.gpg" | \
                     tee /etc/apt/sources.list.d/syncthing.sources
+
                 apt update
                 apt install syncthing
 
