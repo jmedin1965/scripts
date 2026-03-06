@@ -82,15 +82,23 @@ fi
 ID=""
 VERSION=""
 [ -e /etc/os-release ] && . /etc/os-release
-[ -e /etc/version ] && ID=`cat /etc/platform`
-[ -e /etc/version ] && VERSION=`cat /etc/version`
+[ -e /etc/version -a ! -d /etc/version ] && ID=`cat /etc/platform`
+[ -e /etc/version -a ! -d /etc/version ] && VERSION=`cat /etc/version`
 [ -e /etc/alpine-release ] && VERSION=`cat /etc/alpine-release`
+if [ -z "$ID" ]
+then
+    ID="`uname -o`"
+    VERSION="`echo $ID | sed "s,[^-]*-,,"`"
+    ID="`echo $ID | sed "s,-.*,,"`"
+fi
+ID="`echo $ID | tr '[:upper:]' '[:lower:]'`"
 
 if /usr/bin/tty > /dev/null 2>&1
 then
     echo
     echo "ID=$ID"
     echo "VERSION=$VERSION"
+    echo "VERSION_ID=$VERSION_ID"
 fi
 
 # do cleanup
