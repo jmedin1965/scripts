@@ -89,6 +89,7 @@ if [ -z "$ID" ]
 then
     ID="`uname -o`"
     VERSION="`echo $ID | sed "s,[^-]*-,,"`"
+    VERSION_ID="$VERSION"
     ID="`echo $ID | sed "s,-.*,,"`"
 fi
 ID="`echo $ID | tr '[:upper:]' '[:lower:]'`"
