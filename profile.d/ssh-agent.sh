@@ -30,9 +30,10 @@ msg "check WSL"
 WSL2="false"
 if [ "`uname -r | tail -c 5`" == WSL2 ] && [ -z "$SSH_AUTH_SOCK" ] # even on WSL, we use SSH_AUTH_SOCK if we have one
 then
+    msg "We are WSL with no SSH_AUTH_SOCK"
 	WSL2="true"
-	export BW_SSH_AUTH_SOCK=~/.ssh/bitwarden-ssh-agent.sock
-	export BW_SSH_AUTH_SOCK=~/.var/app/com.bitwarden.desktop/data/.bitwarden-ssh-agent.sock
+#	export BW_SSH_AUTH_SOCK=~/.ssh/bitwarden-ssh-agent.sock
+#	export BW_SSH_AUTH_SOCK=~/.var/app/com.bitwarden.desktop/data/.bitwarden-ssh-agent.sock
     msg "  We are running on WSL: BW_SSH_AUTH_SOCK=$BW_SSH_AUTH_SOCK"
 fi
 
@@ -87,13 +88,14 @@ fi
 export SSH_AUTH_SOCK_ORIG=""
 
 # Cygwin ssh-agent socket
-if [ "`uname -o`" == "Cygwin" ]
-then
-    msg
-    msg " we are using Cygwin."
-    AUTH_SOCK=~/.ssh/ssh-agent-pageant.sock
-    SSH_AGENT="/usr/bin/ssh-pageant"
-fi
+case "`uname -o | tr '[:upper:]' '[:lower:]'`" in
+    cygwin*)
+        msg
+        msg " we are using Cygwin."
+        AUTH_SOCK=~/.ssh/ssh-agent-pageant.sock
+        SSH_AGENT="/usr/bin/ssh-pageant"
+        ;;
+esac
 
 msg
 msg "SUDO_USER=$SUDO_USER"
@@ -105,7 +107,7 @@ if [ "$WSL2" == true ]
 then
     msg
     msg " we are using WSL2"
-    export SSH_AUTH_SOCK="$BW_SSH_AUTH_SOCK"
+#    export SSH_AUTH_SOCK="$BW_SSH_AUTH_SOCK"
     msg " BW_SSH_AUTH_SOCK=$BW_SSH_AUTH_SOCK"
     msg " SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
     #/usr/local/sbin/ssh-agent-pipe-from-windows.sh
