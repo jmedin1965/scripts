@@ -58,13 +58,21 @@ fi
 
 # fix for pfsense
 vim_dir=""
+vimlocal=""
 [ -d /usr/local/etc/vim ] && vim_dir="/usr/local/etc/vim"
 [ -d /etc/vim ]           && vim_dir="/etc/vim"
-
-# fix for ipfire, needs further fixing
+#
 if [ -n "$vim_dir" ]
 then
     vimlocal="${vim_dir}/vimrc.local"
+
+elif [ -e /etc/vimrc ] # Cogwin doesn't have a vim folder, or at least on mobaexterm
+then
+    vimlocal="/etc/vimrc.local"
+fi
+#
+if [ -n "$vimlocal" ]
+then
     # do vim fixes
     #
     # if file exists and is a real file or if it's a link and not pointing to the scripts version

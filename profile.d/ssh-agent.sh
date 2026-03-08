@@ -25,6 +25,8 @@ export AUTH_SOCK_LINK=~/.ssh/ssh-agent-link.sock        # a link we use to point
 export AUTH_SOCK_D=~/.ssh/ssh-agent.sock.d              # a directory containing links to auth sockets
 export SSH_AGENT="ssh-agent"                            # the linux ssh-agent
 
+export SSH_AUTH_SOCK_ORIG=""
+
 # WSL2 and bitwarden-agent
 msg "check WSL"
 WSL2="false"
@@ -36,6 +38,16 @@ then
 #	export BW_SSH_AUTH_SOCK=~/.var/app/com.bitwarden.desktop/data/.bitwarden-ssh-agent.sock
     msg "  We are running on WSL: BW_SSH_AUTH_SOCK=$BW_SSH_AUTH_SOCK"
 fi
+
+# Cygwin ssh-agent socket
+case "`uname -o | tr '[:upper:]' '[:lower:]'`" in
+    cygwin*)
+        msg
+        msg " we are using Cygwin."
+        AUTH_SOCK=~/.ssh/ssh-agent-pageant.sock
+        SSH_AGENT="/usr/bin/ssh-pageant"
+        ;;
+esac
 
 
 if [ "$1" == logout ]
@@ -84,18 +96,6 @@ then
     sleep 3
 	exit 0
 fi
-
-export SSH_AUTH_SOCK_ORIG=""
-
-# Cygwin ssh-agent socket
-case "`uname -o | tr '[:upper:]' '[:lower:]'`" in
-    cygwin*)
-        msg
-        msg " we are using Cygwin."
-        AUTH_SOCK=~/.ssh/ssh-agent-pageant.sock
-        SSH_AGENT="/usr/bin/ssh-pageant"
-        ;;
-esac
 
 msg
 msg "SUDO_USER=$SUDO_USER"
@@ -276,7 +276,7 @@ unset SCRIPT
 echo
 if [ "$WSL2" == "false" ]
 then
-    ssh-add -l
+#    ssh-add -l
     echo
 fi
 
