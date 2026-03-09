@@ -30,14 +30,15 @@ export SSH_AUTH_SOCK_ORIG=""
 # WSL2 and bitwarden-agent
 msg "check WSL"
 WSL2="false"
-if [ "`uname -r | tail -c 5`" == WSL2 ] && [ -z "$SSH_AUTH_SOCK" ] # even on WSL, we use SSH_AUTH_SOCK if we have one
-then
-    msg "We are WSL with no SSH_AUTH_SOCK"
-	WSL2="true"
-#	export BW_SSH_AUTH_SOCK=~/.ssh/bitwarden-ssh-agent.sock
-#	export BW_SSH_AUTH_SOCK=~/.var/app/com.bitwarden.desktop/data/.bitwarden-ssh-agent.sock
-    msg "  We are running on WSL: BW_SSH_AUTH_SOCK=$BW_SSH_AUTH_SOCK"
-fi
+case "`uname -r | tr '[:lower:]' '[:upper:]'`" in
+    *WSL2)
+        WSL2="true"
+        msg "  We are WSL with no SSH_AUTH_SOCK"
+#        export BW_SSH_AUTH_SOCK=~/.ssh/bitwarden-ssh-agent.sock
+#        export BW_SSH_AUTH_SOCK=~/.var/app/com.bitwarden.desktop/data/.bitwarden-ssh-agent.sock
+        msg "  We are running on WSL: BW_SSH_AUTH_SOCK=$BW_SSH_AUTH_SOCK"
+        ;;
+esac
 
 # Cygwin ssh-agent socket
 case "`uname -o | tr '[:upper:]' '[:lower:]'`" in
@@ -121,9 +122,10 @@ then
     #fi
 fi
 
+msg
+msg "start main if the else check"
 if [ -n "$SUDO_USER" ] # if we sudo'd, try to use old users socket
 then
-    msg
     msg " we have sudo'd from user $SUDO_USER"
     SUDO_USER_HOME="`/usr/bin/getent passwd $SUDO_USER | /usr/bin/cut -f 6 -d:`"
     SUDO_AUTH_SOCK=`echo $AUTH_SOCK | /usr/bin/sed "s,^$HOME,$SUDO_USER_HOME,g"`
@@ -150,7 +152,6 @@ then
 
     if [ -e "$SUDO_AUTH_SOCK_LINK" ]
     then
-        msg
         export SSH_AUTH_SOCK="$SUDO_AUTH_SOCK_LINK"
         msg "checking if socket for user $SUDO_USER is active"
         msg "SSH_AUTH_SOCK=$SUDO_AUTH_SOCK_LINK"
@@ -175,7 +176,6 @@ then
 
 elif [ -n "$SSH_AUTH_SOCK" ] # if we have been pased an SSH_AUTH_SOCK then
 then
-    msg
     msg " yes, we have SSH_AUTH_SOCK=$SSH_AUTH_SOCK"
     [ -d "$AUTH_SOCK_D" ] || ( /bin/mkdir "$AUTH_SOCK_D"; /bin/chmod 0700 "$AUTH_SOCK_D" )
     msg " SSH_AUTH_SOCK was set to:  $SSH_AUTH_SOCK"
@@ -183,7 +183,6 @@ then
     # SSH_AUTH_SOCK is not pointing to the local one if we are running on WSL2
     if [ "$SSH_AUTH_SOCK" != "$AUTH_SOCK" ] # if SSH_AUTH_SOCK is not pointing to the local one then
     then
-        msg
         msg "  SSH_AUTH_SOCK:$SSH_AUTH_SOCK != AUTH_SOCK:$AUTH_SOCK"
         # check if the one passed is active, if it is, use this one
 #        if [ "$WSL2" != true ]
@@ -193,11 +192,9 @@ then
         ssh-add -l 2>/dev/null >/dev/null   # test if local socket is active
         if [ $? -ge 2 ] && [ "$WSL2" != true ]  # if not active
         then
-            msg
             msg "   $SSH_AUTH_SOCK is not active, use $AUTH_SOCK instead."
             export SSH_AUTH_SOCK="$AUTH_SOCK"
         else
-            msg
             if [ "$WSL2" == true ]
             then
                 msg "    $SSH_AUTH_SOCK : we are WSL2 so no need to check."
@@ -228,12 +225,13 @@ then
         fi
     fi
 else
-    msg
-    export SSH_AUTH_SOCK="$AUTH_SOCK"   # change to use local socket
+    export SSH_AUTH_SOCK="$AUTH_SOCK"        # change to use local socket
+    export SSH_AUTH_SOCK="$AUTH_SOCK_LINK"   # change to use local link socket. Hopefully it work, or will get fixed by anothert process
     msg " SSH_AUTH_SOCK not set, setting to: $SSH_AUTH_SOCK"
 fi
 
 msg
+msg "Do final agent check to see if it's active"
 if [ "$WSL2" == "false" ]
 then
     # ok, now we should be pointing to the right socket file
