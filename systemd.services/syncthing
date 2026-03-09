@@ -7,18 +7,22 @@ usage()
 {
         echo "Usage: $prog [id|init|pending|status]"
         echo "Where:"
-        echo "    id)    Show this client ID"
-        echo "  init)    Initialise a new server, must accept on the remote initiator"
-        echo "  install) Install sincthing on this system"
-        echo "  status)  display server status including perding folder share requests"
-        echo "  pending) show pending folder requests"
+        echo "    id                    - Show this client ID"
+        echo "  init                    - Initialise a new server, must accept on the remote initiator"
+        echo "  install <force> user... - Install sincthing on this system, and optionally enable service for user"
+        echo "  status                  - display server status including perding folder share requests"
+        echo "  pending                 - show pending folder requests"
 }
 
-case "$1" in
+cmd="$1"
+shift
+prog="$(basename "$0")"
+
+case "$cmd" in
     add)
-        FOLDER_ID="$2"
-        FOLDER_LABEL="$3"
-        FOLDER_PATH="$4"
+        FOLDER_ID="$1"
+        FOLDER_LABEL="$2"
+        FOLDER_PATH="$3"
         if [ -z "$FOLDER_ID" ] || [ -z "$FOLDER_LABEL" ] || [ -z "$FOLDER_PATH" ]
         then
             echo "  FOLDER_ID    = $FOLDER_ID"
@@ -42,10 +46,12 @@ case "$1" in
         ;;
     install)
         # REF: https://apt.syncthing.net/
-        if [ -e /usr/bin/syncthing -a "$2" != "force" ]
+        if [ -e /usr/bin/syncthing -a "$1" != "force" ]
         then
             echo "syncthing already installed at /usr/bin/syncthing. Use \"install force\" to force install."
         else
+            [ "$1" == force ] && shift
+
             mkdir -p /etc/apt/keyrings
             rm -f /tmp/syncthing-archive-keyring.gpg
             curl -L -o /tmp/syncthing-archive-keyring.gpg https://syncthing.net/release-key.gpg
@@ -64,10 +70,6 @@ Signed-By: /etc/apt/keyrings/syncthing-archive-keyring.gpg" | \
 
                 apt update
                 apt install syncthing
-
-                useradd --system -m -u 900 -U syncthing-service
-                systemctl enable syncthing@syncthing-service.service
-                systemctl start syncthing@syncthing-service.service
             else
                 echo "download of syncthing gpg repo key failed"
             fi
@@ -75,27 +77,79 @@ Signed-By: /etc/apt/keyrings/syncthing-archive-keyring.gpg" | \
 
         if [ -e /usr/bin/syncthing ]
         then
-            uid="$(id -u "syncthing-service" 2> /dev/null)"
-            gid="$(id -g "syncthing-service" 2> /dev/null)"
-            if [ -n "$uid" ]
-            then
-                echo "user syncthing-service already exists with uid=$uid and gid=$gid."
-            else
-                useradd --system -m -u 900 -U syncthing-service
-            fi
+            for user in "$@"
+            do
+                uid="$(id -u "$user" 2> /dev/null)"
+                gid="$(id -g "$user" 2> /dev/null)"
+                system=""
 
-            if systemctl is-enabled syncthing@syncthing-service.service &> /dev/null
-            then
-                echo "syncthing@syncthing-service.service is already enabled."
+                case "$user" in
+                    syncthing-service)
+                        [ -z "$uid" ] || uid="900" # use uid=900 for syncthing-service 
+                        system="--system"
+                        ;;
+                    root)
+                        # root needs an override to be able to write to /etc
+                        override_d="/etc/systemd/system/syncthing@${user}.service.d"
+                        ;;
+                esac
+
+                if [ -n "$gid" ]
+                then
+                    echo "user $user already exists with uid=$uid and gid=$gid."
+                else
+                    useradd $system -m -o -u $uid -U $user
+                fi
+
+                if systemctl is-enabled syncthing@${user}.service &> /dev/null
+                then
+                    echo "syncthing@${user}.service is already enabled."
+                    echo
+                    echo "use the following commands to enable more:"
+                    echo "  useradd --system -m -u [uid] -U [user_id]"
+                    echo "  systemctl enable syncthing@[user_id].service"
+                    echo "  systemctl start syncthing@[user_id].service"
+                    echo "or"
+                    echo "  $prog: install user..."
+                else
+                    systemctl enable syncthing@${user}.service
+                    systemctl start syncthing@${user}.service
+                fi
+
+                if [ -n "$override_d" ]
+                then
+                    echo
+                    echo "[Service]
+ProtectSystem=true
+ReadWritePaths=/etc
+" > "$override_d/override.conf"
+                    if [ -e "$override_d/override.conf" ]
+                    then
+                        echo "$override_d: Override file updated."
+                    else
+                        echo "$override_d: Override file created."
+                    fi
+
+                    echo
+                    echo "doing systemctl daemon-reload"
+                    systemctl daemon-reload
+                    echo
+
+                    for folder in /etc /usr /bin /sbin
+                    do
+                        stignore="${folder}/.stignore"
+                        if [ -e "$stignore" ]
+                        then
+                            echo "$stignore: file exists."
+                        else
+                            echo '**' > "$stignore"
+                            echo "$stignore: file created."
+                        fi
+                    done
+                fi
+
                 echo
-                echo "use the following commands to enable more:"
-                echo "  useradd --system -m -u 900 -U syncthing-service"
-                echo "  systemctl enable syncthing@syncthing-service.service"
-                echo "  systemctl start syncthing@syncthing-service.service"
-            else
-                systemctl enable syncthing@syncthing-service.service
-                systemctl start syncthing@syncthing-service.service
-            fi
+            done
         fi
         ;;
     status)
