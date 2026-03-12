@@ -70,6 +70,8 @@ main()
             clear
         fi
 
+        echo host=$host
+
         if [ "$host" == "q" ]
         then
             kill_all
@@ -116,7 +118,7 @@ main()
 
             #echo hit the ENTER key; read and
 
-            ssh -4 -L $next_port:localhost:$port -J jmedin@192.168.10.127 -A root@$host -N 2>/dev/null&
+            ssh -o StrictHostKeyChecking=accept-new -4 -L $next_port:localhost:$port -J jmedin@192.168.10.127 -A root@$host -N 2>/dev/null&
 
             pid_list[$last_host]="$!"
             port_list[$last_host]="$next_port"
@@ -168,19 +170,19 @@ menu()
         echo "The user chose '$result' - '${menu[$result]}'.";;
       1)
         echo "Cancel pressed."
-        result="q"
+        host="q"
         ;;
       3)
         echo "Add pressed."
-        result="+"
+        host="+"
         ;;
       255)
         echo "Box closed."
-        result="q"
+        host="q"
         ;;
       *)
         echo "Unknown retval: $retval"
-        result="q"
+        host="q"
         echo -n "Hit ENTER to contunue"
         read ans
         ;;
