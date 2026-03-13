@@ -1,0 +1,12 @@
+#!/bin/sh
+
+fortune="/usr/games/fortune"
+
+if [ -x "$fortune" ]
+then
+    exec "$fortune"
+else
+    echo "$fortune: app not found."
+    echo "install with: sudo apt install fortune-mod fortunes"
+fi
+
