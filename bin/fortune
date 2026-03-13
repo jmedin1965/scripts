@@ -1,7 +1,7 @@
 #!/bin/sh
 
 fortune="/usr/games/fortune"
-for fortune in /usr/games/fortune /usr/bin/fortune
+for fortune in /usr/bin/fortune.exe /usr/games/fortune /usr/bin/fortune /bin/fortune
 do
     if [ -x "$fortune" ]
     then
