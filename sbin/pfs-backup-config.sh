@@ -40,7 +40,7 @@ main()
 		*)
 			case "$1" in
 				backup)		backup;;
-				mount)		mount;;
+				mount)		mount "$mount";;
 				cron)		inst_cron;;
 				check-keys)	check_keys;;
 				format)
@@ -52,6 +52,11 @@ main()
 						usage "--format needs and option, dev to be formater."
 					fi
 					;;
+				syncthing)
+					shift
+					syncthing $@
+					break
+					;;
 				*)
 					usage "$1: unknown command"
 					;;
@@ -62,6 +67,55 @@ main()
         done
 }
 
+syncthing()
+{
+	local m="/root/backup/mnt"
+	local datestr="~$(date +%Y%m%d-%H%M%S)"
+
+	
+
+	# The parameters we get from Syncthing
+	folderpath="$1"
+	filepath="$2"
+	filename="${filepath%.*}"
+	fileext=""
+	[ "$filepath" != "$filename" ] && fileext=".${filepath##*.}"
+	# Where I want my versions stored
+	local versionspath="${folderpath}/.stversions"
+
+	outpath=$(dirname "$versionspath/$filepath")
+
+	mount "$m"
+
+	echo
+	echo "datestr      = $datestr"
+	echo "folderpath   = $folderpath"
+	echo "filepath     = $filepath"
+	echo "filename     = $filename"
+	echo "fileext      = $fileext"
+	echo "versionspath = $versionspath"
+	echo "outpath      = $outpath"
+
+	echo
+	echo mkdir -p "$outpath"
+	echo mv -f "$folderpath/$filepath" "$versionspath/$filepath"
+	echo mv -f "$folderpath/$filepath" "$versionspath/$filename$datestr$fileext"
+
+	echo
+	echo argc=$#
+	for arg in "$@"
+	do
+		echo arg=$arg
+	done
+
+	return 0
+
+	# First ensure the dir where we need to store the file exists
+	mkdir -p "$outpath"
+	# Then move the file there
+	mv -f "$folderpath/$filepath" "$versionspath/$filepath"
+}
+
 backup()
 {
         inst_pkg vim
@@ -70,7 +124,7 @@ backup()
 	inst_pkg pfSense-pkg-Backup
 	inst_pkg rsync
 
-	mount
+	mount "$mount"
 
 	dest="$mount"
 	dest="/root/backup/test"
@@ -141,6 +195,7 @@ usage()
 	echo "  mount      - just mount and exit."
 	echo "  check-keys - check host ssh keys and compare with backup file"
 	echo "  cron       - add cron to do regular backups"
+	echo "  syncthing  - do syncthing versioning"
 	echo
 	) > /dev/stderr
 	exit 1
@@ -350,16 +405,19 @@ copy_check()
         done
 }
 
-# will find the first msdosfs patrition and mount it on $mount
+# will find the first msdosfs patrition and mount it on $mount, or $1 if supplied
 mount()
 {
         local name
         local type
         local a b c
+	local m
 
-        if [ "`/sbin/mount | /usr/bin/fgrep -ce " $mount "`" != 0 ]
+	[ -z "$1" ] && m="$mount"
+
+        if [ "`/sbin/mount | /usr/bin/fgrep -ce " $m "`" != 0 ]
         then
-                msg already mounted on $mount
+                msg already mounted on $m
                 return 1
         fi
 
@@ -374,8 +432,8 @@ mount()
                 elif [ "$a" == "type:" ] && [ "$b" == fat32 -o "$b" == fat32lba  ]
                 then
                         type="$b"
-                        msg /sbin/mount -t msdosfs "/dev/$name" "$mount"
-                        /sbin/mount -t msdosfs "/dev/$name" "$mount"
+                        msg /sbin/mount -t msdosfs "/dev/$name" "$m"
+                        /sbin/mount -t msdosfs "/dev/$name" "$m"
                         return $?
                 fi
         done
@@ -384,7 +442,7 @@ mount()
 
         if [ $? != 0 ]
         then
-                msg "error: failed to mount $mount, exiting"
+                msg "error: failed to mount $m, exiting"
                 exit 1
         fi
 

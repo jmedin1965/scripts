@@ -31,11 +31,6 @@ main()
 		esac
 	done
 
-	if [ "$1" == -y ]
-	then
-		opt_yes="true"
-		shift
-	fi
 	[ -z "$1" ] && usage
 	[ -x /usr/local/bin/jq ] || /usr/sbin/pkg install -y jq
 

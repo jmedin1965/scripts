@@ -82,7 +82,7 @@ then
     fi
     if [ ! -e "$vimlocal" ]
     then
-        ln -s "$git_repo_local$vimlocal" "$vimlocal"
+        ln -s "$git_repo_local/etc/vimrc.local" "$vimlocal"
     fi
 fi
 
