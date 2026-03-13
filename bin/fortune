@@ -1,12 +1,14 @@
 #!/bin/sh
 
 fortune="/usr/games/fortune"
+for fortune in /usr/games/fortune /usr/bin/fortune
+do
+    if [ -x "$fortune" ]
+    then
+        exec "$fortune"
+    fi
+done
 
-if [ -x "$fortune" ]
-then
-    exec "$fortune"
-else
-    echo "$fortune: app not found."
-    echo "install with: sudo apt install fortune-mod fortunes"
-fi
+echo "$fortune: app not found."
+echo "install with: sudo apt install fortune-mod fortunes"
 

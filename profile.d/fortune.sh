@@ -1,5 +1,5 @@
 
-if [ -x /usr/local/scripts/bin/fortune ] && [ "`fgrep -c "/usr/local/scripts/bin/fortune" ~/.bashrc`" == 0 ]
+if [ -x /usr/local/scripts/bin/fortune ] && ( [ ! -e ~/.bashrc ] || [ "`fgrep -c "/usr/local/scripts/bin/fortune" ~/.bashrc`" == 0 ] )
 then
     echo installing fortune
     echo "echo" >> ~/.bashrc
