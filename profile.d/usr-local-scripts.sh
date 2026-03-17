@@ -1,4 +1,3 @@
-#!/bin/sh
 
 git_repo_local="/usr/local/scripts"
 

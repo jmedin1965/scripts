@@ -1,3 +1,4 @@
+
 ip=""
 
 if [ -z "$DISPLAY" ]
