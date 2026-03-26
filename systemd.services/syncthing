@@ -118,6 +118,7 @@ Signed-By: /etc/apt/keyrings/syncthing-archive-keyring.gpg" | \
 
                 if [ -n "$override_d" ]
                 then
+                    mkdir -p "$override_d"
                     echo
                     echo "[Service]
 ProtectSystem=true

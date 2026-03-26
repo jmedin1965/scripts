@@ -10,10 +10,18 @@ skipped=""  # keep trak of skipped syns if we are looking for last state
 
 dryrun="false"
 
+# onedrive Chunck Size default = 10M
+# transfers default = 4
+# decreased because I was getting errors
+
 opts=(
     "--create-empty-src-dirs"
     "--update"
     "--fast-list"
+    "--transfers"
+    "3"
+    "--onedrive-chunk-size"
+    "5M"
 )
 
 sync_prog="/usr/bin/rclone"
@@ -32,14 +40,12 @@ SYNC_PID=""
 ctrl_c() {
 
     msg "** Trapped CTRL-C"
-echo "trap SYNC_PID=$SYNC_PID" >> /tmp/log.log
     if [ -n "$SYNC_PID" ]
     then
         if ps -p "$SYNC_PID" > /dev/null
         then
             msg "Process $SYNC_PID is running"
             kill "$SYNC_PID"
-echo "trap kill SYNC_PID=$SYNC_PID" >> /tmp/log.log
         else
             msg "Process $SYNC_PID is not running"
         fi
@@ -135,7 +141,7 @@ $*"
     [ "$ev" == 0 ] && rm -f "$state_f"
     SYNC_PID=""
 
-    #trap - EXIT SIGINT SIGTERM SIGHUP SIGQUIT
+    trap - EXIT SIGINT SIGTERM SIGHUP SIGQUIT
 
     return "$ev"
 }
