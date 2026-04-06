@@ -40,7 +40,10 @@ main()
         *)
             case "$1" in
                 backup)     backup;;
-                mount)      mount;;
+                mount)
+                    shift
+                    mount "$@"
+                    ;;
                 cron)       inst_cron;;
                 check-keys) check_keys;;
                 format)
@@ -124,7 +127,7 @@ backup()
     inst_pkg pfSense-pkg-Backup
     inst_pkg rsync
 
-    mount "$mount"
+    mount
 
     dest="$mount"
     dest="/root/backup/test"
@@ -405,14 +408,22 @@ copy_check()
 }
 
 # will find the first msdosfs patrition and mount it on $mount, or $1 if supplied
+#
+# Usage:
+#   mount [dev] [mount dir]
+#   mount [dev]
+#   mount
+#
 mount()
 {
-    local name
+    local name=""
     local type
     local a b c
-    local m
+    local m="$mount"
 
-    [ -z "$1" ] || m="$mount"
+
+    [ -n "$1" ] && name="$(basename "$1")"
+    [ -n "$2" ] && m="$2"
     [ -d "$m" ] || mkdir "$m"
 
     if [ "`/sbin/mount | /usr/bin/fgrep -ce " $m "`" != 0 ]
@@ -421,29 +432,34 @@ mount()
         return 1
     fi
 
-    /sbin/gpart list | /usr/bin/fgrep -e " Name: " -e " type: " | (
-    while read a b c
-    do
-        if [ "$b" == Name: ]
-        then
-            name="$c"
-            type=""
+    if [ -z "$name" ]
+    then
+        name=$(/sbin/gpart list | /usr/bin/fgrep -e " Name: " -e " type: " | (
+        while read a b c
+        do
+            if [ "$b" == Name: ]
+            then
+                name="$c"
+                type=""
 
-        elif [ "$a" == "type:" ] && [ "$b" == fat32 -o "$b" == fat32lba  ]
-        then
-            type="$b"
-            msg /sbin/mount -t msdosfs "/dev/$name" "$m"
-            /sbin/mount -t msdosfs "/dev/$name" "$m"
-            return $?
-        fi
-    done
-    return 1
-    )
+            elif [ "$a" == "type:" ] && [ "$b" == fat32 -o "$b" == fat32lba  ]
+            then
+                type="$b"
+                echo "$name"
+                return 0
+            fi
+        done
+        return 1
+        ))
+    fi
 
     if [ $? != 0 ]
     then
         msg "error: failed to mount $m, exiting"
         exit 1
+    else
+        msg /sbin/mount -t msdosfs "/dev/$name" "$m"
+        /sbin/mount -t msdosfs "/dev/$name" "$m"
     fi
 
     return 0
