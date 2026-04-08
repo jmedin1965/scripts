@@ -1,15 +1,37 @@
+Binary files a/src/etc/.rc.initial.swp and b/src/etc/.rc.initial.swp differ
 diff -ur -N a/src/etc/rc.initial b/src/etc/rc.initial
---- a/src/etc/rc.initial	2025-12-23 18:08:15.848759000 +1100
-+++ b/src/etc/rc.initial	2025-12-26 14:05:37.977282000 +1100
-@@ -63,6 +63,7 @@
+--- a/src/etc/rc.initial	2026-04-08 12:37:55.085774000 +1000
++++ b/src/etc/rc.initial	2026-04-08 13:28:52.110547000 +1000
+@@ -73,7 +73,19 @@
  	sshd_option='Enable'
  fi
  
++# Work out what shell to use
++if [ -x /usr/local/bin/bash ]
++then
++    shell="/usr/local/bin/bash"
++elif [ -x /bin/tcsh ]
++then
++    shell="/bin/tcsh"
++else
++    shell="/bin/sh"
++fi
 +
  # display console menu
++shell_str="$(/usr/bin/printf "%-33s" "$(/usr/bin/basename "$shell") Shell")"
  echo ""
- echo " 0) Logout (SSH only)                  9) pfTop"
-@@ -82,6 +83,7 @@
+ echo " 0) Logout / Disconnect SSH            9) pfTop"
+ echo " 1) Assign Interfaces                 10) Filter Logs"
+@@ -83,7 +95,7 @@
+ echo " 5) Reboot system                     14) ${sshd_option} Secure Shell (sshd)"
+ echo " 6) Halt system                       15) Restore recent configuration"
+ echo " 7) Ping host                         16) Restart PHP-FPM"
+-echo " 8) Shell"
++echo " 8) $shell_str                        "
+ 
+ echo
+ read -p "Enter an option: " opmode
+@@ -92,6 +104,7 @@
  # see what the user has chosen
  case ${opmode} in
  0)
@@ -17,20 +39,12 @@ diff -ur -N a/src/etc/rc.initial b/src/etc/rc.initial
  	exit && exit && logout
  	;;
  1)
-@@ -106,7 +108,15 @@
+@@ -116,7 +129,7 @@
  	/etc/rc.initial.ping
  	;;
  8)
 -	/bin/tcsh
-+	if [ -x /usr/local/bin/bash ]
-+	then
-+		/usr/local/bin/bash
-+	elif [ -x /bin/tcsh ]
-+	then
-+		/bin/tcsh
-+	else
-+		/bin/sh
-+	fi
++    "$shell"
  	;;
  9)
  	/usr/local/sbin/pftop

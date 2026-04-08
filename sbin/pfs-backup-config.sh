@@ -17,6 +17,8 @@ main()
 
     hostname="`/bin/hostname -s | /usr/bin/tr '[:upper:]' '[:lower:]'`"
 
+    init
+
     for arg in "$@"
     do
         case "$arg" in
@@ -119,14 +121,19 @@ syncthing()
     mv -f "$folderpath/$filepath" "$versionspath/$filepath"
 }
 
-backup()
+init()
 {
     inst_pkg vim
     inst_pkg qemu-guest-agent
     inst_pkg git
     inst_pkg pfSense-pkg-Backup
     inst_pkg rsync
+    inst_pkg bash
+    [ -L /bin/bash ] || ln -sf /usr/local/bin/bash /bin/bash
+}
 
+backup()
+{
     mount
 
     dest="$mount"
