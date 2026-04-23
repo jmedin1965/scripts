@@ -70,4 +70,6 @@ set t_u7=
 highlight Visual cterm=reverse ctermbg=NONE
 
 colorscheme desert
+set background=dark
+set cursorline
 
