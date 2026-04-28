@@ -3,7 +3,7 @@ if [ -x /usr/bin/apt -a -x /usr/local/scripts/bin/fortune ] && ( [ ! -e ~/.bashr
 then
     echo installing fortune
     echo "echo" >> ~/.bashrc
-    echo "/usr/local/scripts/bin/fortune" >> ~/.bashrc
+    echo '[[ $- == *i* ]] && /usr/local/scripts/bin/fortune' >> ~/.bashrc
     echo "echo" >> ~/.bashrc
     /bin/chmod 0640 ~/.bashrc
 fi
