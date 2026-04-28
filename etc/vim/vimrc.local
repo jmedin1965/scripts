@@ -51,7 +51,7 @@ set showmatch		" Show matching brackets.
 "set hidden		" Hide buffers when they are abandoned
 "set mouse=a		" Enable mouse usage (all modes)
 
-autocmd Filetype * setlocal tabstop=4 shiftwidth=4 softtabstop=4 expandtab
+autocmd Filetype * setlocal tabstop=2 shiftwidth=2 softtabstop=2 expandtab
 
 " Greg vim fixes TM
 set mouse-=a
