@@ -11,10 +11,11 @@ main()
 
     if [[ "$system" =~ .*WSL2 ]]
     then
+        info "doing WSL2 stuff"
         search="search jgi.joyglobalinc.com jmsh-home.com"
         if [ "($/bin/grep -c "$search" /etc/resolv.conf)" == "0" ]
         then
-            info "doing WSL2 stuff"
+          info "updating search in resolve.conf"
             echo "$search" >> /etc/resolv.conf
         fi
     else
