@@ -67,14 +67,16 @@ then
     then
       for port in "${ports[@]}"
       do
-        info try = $try:$port
+        teleport="teleport.$try:$port"
+        info try = $teleport
         cert="$(curl --silent https://$teleport/webapi/auth/export?type=user)"
         if [ $? == 0 ]
         then
-          teleport="teleport.$try:$port"
           info "$teleport" > "$teleport_f"
           chmod 655 "$teleport_f"
           break 2
+        else
+          teleport=""
         fi
       done
     fi
