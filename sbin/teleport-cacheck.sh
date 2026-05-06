@@ -160,6 +160,7 @@ fi
 info dirty = $dirty
 if [ "$dirty" == "true" ]
 then
-  info restarting sshd
+  systemctl reload ssh
+  info "restarted sshd, ev = $?"
 fi
 
