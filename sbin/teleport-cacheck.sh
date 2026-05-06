@@ -68,11 +68,11 @@ then
       for port in "${ports[@]}"
       do
         teleport="teleport.$try:$port"
-        info try = $teleport
+        info "try = $teleport"
         cert="$(curl --silent https://$teleport/webapi/auth/export?type=user)"
         if [ $? == 0 ]
         then
-          info "$teleport" > "$teleport_f"
+          echo "$teleport" > "$teleport_f"
           chmod 655 "$teleport_f"
           break 2
         else
