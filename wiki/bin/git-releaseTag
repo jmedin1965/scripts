@@ -1,0 +1,17 @@
+#!/bin/bash
+
+rel=""
+if [ -e /etc/system-release ]
+then
+	echo "checking ipfire release version"
+	rel="$(/bin/sed 's/\s*//g' </etc/system-release)"
+fi
+
+if [ -n "$rel" ]
+then
+	echo "found release $rel"
+	/usr/bin/git tag  "$rel"
+else
+	echo "unable to determine disto release"
+fi
+

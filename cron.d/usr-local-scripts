@@ -1,0 +1,9 @@
+#
+# cron.d script to update local scripts
+#
+
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+0 12 * * * root /usr/local/scripts/install.sh 2>&1
+@reboot root /usr/local/scripts/install.sh 2>&1

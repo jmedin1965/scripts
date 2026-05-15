@@ -1,0 +1,93 @@
+#!/bin/bash
+
+. /usr/local/sbin/local-functions
+
+getssl_dir="/etc/getssl"
+#prog="/usr/local/sbin/getssl --all --upgrade -w $getssl_dir --keep 40"
+prog="/usr/local/sbin/getssl --upgrade -w $getssl_dir --keep 40"
+
+hostname="$(/bin/hostname)"
+sucessMsg="No renewals were attempted."
+sucessMsg="certificate is valid for more than "
+mailSubject="${prog##*/} from $hostname"
+sleep="$(($RANDOM % 120))"
+sleep="$(($sleep * 60))"
+check_disable_file="false"
+
+while [ "$#" != 0 ]
+do
+	case "$1" in
+	"--no-sleep")	sleep="0"
+			;;
+	"--")		shift
+			break
+			;;
+	"-*")		echo "$1: unknown option, exiting."
+			exit 1
+			;;
+	esac
+	shift
+done
+
+#
+# check for -f or --force option passed to getssl
+#
+for arg in "$@"
+do
+	case "$arg" in
+	"--force" | "-f")	check_disable_file="true";;
+	esac
+done
+
+
+log_init "/var/log/getssl/renew.log"
+
+(
+	for dom in ${getssl_dir}/*
+	do
+		if [ -e "${dom}/getssl.cfg" ]
+		then
+			dom="$(/usr/bin/basename "$dom")"
+
+			echo "Checking certs for \"$dom\""
+
+			if [ -e "${getssl_dir}/${dom}-check_disable" -a "$check_disable_file" == true ]
+			then
+				echo "${getssl_dir}/${dom}-check_disable: No need to check, check disable file exists."
+			else
+				$prog "$@" $dom 2>&1
+				ev="$?"
+			
+				if [ "$ev" == 0 -a "$check_disable_file" == true ]
+				then
+					touch "${getssl_dir}/${dom}-check_disable"
+					echo "No more checks needed."
+				fi
+				echo "exited with value $ev"
+			fi
+		fi
+	done
+)  | (
+
+	log "start cert check: runnng from ${hostname}: $prog $*"
+	log "random sleep for $sleep seconds"
+
+	/bin/sleep $sleep
+
+	while read line
+	do
+		log "-> $line"
+	done
+
+	if [ "$(echo -e "$msg" | /bin/fgrep -c "$sucessMsg")" -eq 0 ]
+	then
+		log "emailing"
+		mail -s "$mailSubject" $mailTo <<< "$msg"
+	else
+		log "not emailing"
+#		mail -s "$mailSubject" $mailTo <<< "$msg"
+	fi
+)
+
+exit 0
+

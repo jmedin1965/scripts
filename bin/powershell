@@ -1,0 +1,51 @@
+#!/bin/bash
+
+log()
+{
+    echo "info:" "$@" >> /tmp/args.log
+}
+
+
+[ -n "$script_copy" -a -e "$script_copy" ] && rm -f 
+copy()
+{
+    if [ "$#" > 1 ]
+    then
+
+        /bin/cat - "$1" > "$2" << END
+
+# Self-elevate the script if required
+if (-Not ([Security.Principal.WindowsPrincipal] [Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole] 'Administrator')) {
+ if ([int](Get-CimInstance -Class Win32_OperatingSystem | Select-Object -ExpandProperty BuildNumber) -ge 6000) {
+  \$CommandLine = "-NoLogo -NoProfile -ExecutionPolicy ByPass -File \`"" + \$MyInvocation.MyCommand.Path + "\`" " + \$MyInvocation.UnboundArguments
+  write-host "elevating now"
+  Start-Process -Wait -FilePath PowerShell.exe -Verb Runas -ArgumentList \$CommandLine
+  Exit
+ }
+}
+
+END
+    fi
+}
+
+#exec /usr/bin/pwsh "$@"
+for arg in "$@"
+do
+    log arg: \"$arg\"
+done
+
+args=("$@")
+dest_lin=""
+dest_dos=""
+if [ -e "$1" ]
+then
+    name="$(/bin/basename "$1")"
+    dest_lin="/mnt/c/Temp/$name"
+    dest_dos="c:\\Temp\\$name"
+    copy "$1" "$dest_lin"
+    args[0]="$dest_dos"
+fi
+
+/mnt/c/windows/system32/WindowsPowerShell/v1.0/powershell.exe "${args[@]}"
+[ -n "$dest_lin" -a -e "$dest_lin" ] && /bin/rm -f "$dest_lin"
+

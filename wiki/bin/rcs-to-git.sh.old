@@ -1,0 +1,88 @@
+
+if [ $# == 0 ]
+then
+	set -- /etc /var /usr/local /boot /root /home
+fi
+
+for d in /etc/rcs-archive  /etc/config-archive
+do
+	[ -d "$d" ] && find "$d" -mount | sort -r | while read file
+	do
+		if [ -f "$file" ]
+		then
+			fileto=${file#$d}
+			if [ -e "${fileto}" ]
+			then
+				echo "error: ${fileto}: file already exists"
+			else
+				echo "file: $file -> $fileto"
+				mv "${file}" "${fileto}"
+			fi
+		else
+			rmdir "$file"
+		fi
+	done
+done
+
+find "$@" -mount -name RCS | while read dir
+do
+	dirto=${dir%RCS}
+	echo "dir: $dir -> $dirto"
+	if [ $(ls -l "$dir" | wc -l) -gt 0 ]
+	then
+		for f in "$dir/"*
+		do
+			if [ -e "$dirto/$(basename "$f")" ]
+			then
+				echo "error: ${f}: file already exists"
+			else
+				mv "$f" "$dirto"
+			fi
+		done
+	fi
+	[ -h "$dir" ] && rm -f "$dir"
+	[ -d "$dir" ] && rmdir "$dir"
+done
+
+
+#
+# Create storage area in /tmp/rcs-to-git
+#
+# Clean it out if it already exists
+#
+git_dir=/tmp/rcs-to-git
+
+[ -d "$git_dir" ] && rm -r "$git_dir"
+
+mkdir "$git_dir"
+mkdir "$git_dir/rcs-files"
+mkdir "$git_dir/git-repo"
+cd "$git_dir/git-repo"
+git init
+echo '*,v' >> .gitignore
+
+#
+# Find and process all rcs files.
+# create git repo consisting of first version of files
+#
+find "$@" -mount -name '*,v' | while read file
+do
+	echo "$file" >> "$git_dir/rcs-filelist"
+	mkdir -p "./$(dirname "$file")"
+	cp -a "$file" "./$file"
+	pushd .
+	cd "./$(dirname "$file")"
+	co -r1.1 "$(basename "$file")"
+	popd
+#	rlog "$file" | while read line
+#	do
+#
+#	done
+done
+git add -A
+git commit -m "Initial revision"
+
+#
+# Now create a list of changes to apply
+#
+cat "$git_dir/rcs-filelist" | while read file

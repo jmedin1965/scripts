@@ -1,0 +1,33 @@
+diff -ur -N a/src/usr/local/etc/rc.d/pfsense_tailscaled b/src/usr/local/etc/rc.d/pfsense_tailscaled
+--- a/src/usr/local/etc/rc.d/pfsense_tailscaled	2025-12-22 15:44:02.465695000 +1100
++++ b/src/usr/local/etc/rc.d/pfsense_tailscaled	2025-12-22 15:44:32.113998000 +1100
+@@ -37,7 +37,10 @@
+ load_rc_config tailscaled
+ 
+ # handle the --auth-key parameter
+-pfsense_tailscaled_up_flags="--auth-key=${pfsense_tailscaled_authkey}"
++# Juan 2025/12/22
++pfsense_tailscaled_authkey_up_flags="--auth-key=${pfsense_tailscaled_authkey}"
++#pfsense_tailscaled_up_flags="--auth-key=${pfsense_tailscaled_authkey}"
++pfsense_tailscaled_up_flags=""
+ 
+ # handle the --login-server parameter
+ pfsense_tailscaled_up_flags="${pfsense_tailscaled_up_flags} --login-server=${pfsense_tailscaled_loginserver}"
+@@ -135,9 +138,14 @@
+ 
+ # bring up tailscale using the generated up flags from the configuration
+ tailscale_up() {
+-	logger -s -t tailscale "Bringing up ${tailscale_tun_dev} with ${pfsense_tailscaled_up_flags}"
+-	${tailscale_bin} up ${pfsense_tailscaled_up_flags} || {
+-		logger -s -t "Unable to bring up ${tailscale_tun_dev}. Check authentication."
++	# Juan 2025/12/22
++	logger -s -t tailscale "Bringing up ${tailscale_tun_dev} with ${pfsense_tailscaled_authkey_up_flags} ${pfsense_tailscaled_up_flags}"
++	${tailscale_bin} up ${pfsense_tailscaled_authkey_up_flags} ${pfsense_tailscaled_up_flags} || {
++		logger -s -t tailscale "Unable to bring up ${tailscale_tun_dev}. Check authentication."
++		logger -s -t tailscale "Bringing up ${tailscale_tun_dev} with ${pfsense_tailscaled_up_flags}"
++		${tailscale_bin} up ${pfsense_tailscaled_up_flags} || {
++			logger -s -t "Unable to bring up ${tailscale_tun_dev}. Check authentication."
++		}
+ 	}
+ }
+ 

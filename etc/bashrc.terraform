@@ -1,0 +1,6 @@
+#
+# Add Terraform bash completion
+#
+
+complete -C /usr/local/bin/terraform terraform
+

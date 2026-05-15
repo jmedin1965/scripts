@@ -1,0 +1,9 @@
+#!/bin/bash
+[ -n "$functions" ] || functions="$(/usr/bin/dirname "$0")/../sbin/local-functions"
+
+if [ -e "$functions" ]
+then
+	. "$functions"
+	mail "$@"
+fi
+

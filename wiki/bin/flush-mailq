@@ -1,0 +1,27 @@
+#
+# flush all stuck emails for a particular user
+#
+# args:  <user-email> ...
+#
+# example flush-mailq nagios@jau0780w
+#
+
+while [ $# -gt 0 ]
+do
+	/usr/bin/mailq | /bin/fgrep "$1" | (
+		while read line
+		do
+			set -- $line
+			/usr/sbin/postsuper -d $1
+			if [ $? == 0 ]
+			then
+				ok=YES
+			else
+				ok=NO
+			fi
+			echo "flush id=$1 from=$7 ok=$ok"
+
+		done
+	)
+	shift
+done

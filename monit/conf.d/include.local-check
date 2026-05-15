@@ -1,0 +1,4 @@
+
+check file include.local with path /etc/monit/conf.d/include.local
+	if not exist then
+		exec "/etc/monit/scripts/include.local-generate"

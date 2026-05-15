@@ -1,0 +1,14 @@
+diff -ur -N a/src/etc/inc/system.inc b/src/etc/inc/system.inc
+--- a/src/etc/inc/system.inc	2024-08-22 11:31:30.885252000 +1000
++++ b/src/etc/inc/system.inc	2024-08-22 11:45:23.815878000 +1000
+@@ -1226,7 +1226,9 @@
+ 						$dnsavailable = check_dnsavailable();
+ 					}
+ 					if ($dnsavailable) {
+-						$hostname = gethostbyaddr($item['ip']);
++						//$hostname = gethostbyaddr($item['ip']);
++						// REF: https://forum.netgate.com/topic/161424/dhcp-lease-screen-not-loading/123
++						$hostname = false;
+ 						if (!empty($hostname)) {
+ 							$item['hostname'] = $hostname;
+ 						}

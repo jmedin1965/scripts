@@ -1,0 +1,13 @@
+#!/bin/bash
+
+if [ $# == 0 ]
+then
+	echo -n "enter ethernet nic name: "
+	read nics
+	set -- $nics
+fi
+
+for nic in "$@"
+do
+	tcpdump -nn -v -i $nic -s 1500 -c 1 'ether[20:2] == 0x2000'
+done

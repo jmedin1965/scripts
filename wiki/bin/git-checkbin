@@ -1,0 +1,303 @@
+#!/bin/bash
+#
+# look for and track binary files as a sha256sum and prevent binary commits
+#
+# REF: https://stackoverflow.com/questions/20226132/is-there-a-git-hook-which-can-prevent-binary-check-ins
+#
+
+#
+# Join stderr to stdout
+#
+#exec 1>&2
+
+GIT_DIR="$(git rev-parse --git-dir)"
+filter="checkbin"
+numstat=""
+
+git=""
+sha256sum=""
+wc=""
+fgrep=""
+grep=""
+cat=""
+chmod=""
+
+main()
+{
+#
+	# process command line options
+	#
+	[ "$1" == "--all" ] &&  numstat="4b825dc642cb6eb9a060e54bf8d69288fbee4904" && shift
+
+	set_commands
+
+#	error "debug: Called: argc = $#, argv = $*"
+
+	case "$1" in
+		"--help")	do_help;;
+		"enable")	do_enable true;;
+		"disable")	do_enable false;;
+		"status")	do_status;;
+		"init")
+			hook_add pre-commit "$git ${filter}"
+			$git config filter.${filter}.clean "git-${filter} clean -- %f"
+			$git config filter.${filter}.smudge "git-${filter} smudge -- %f"
+			$git config hooks.${filter} true
+			;;
+		"clean")
+			shift
+			while [ $# != 0 ]
+			do
+				case "$1" in
+				"--")	shift && break;;
+				"-"*)	error "${1}: Unknown option" && exit 1;;
+				*)	break;;
+				esac
+				shift
+			done
+			sha256sum "$@"
+			;;
+		"smudge")
+			shift
+			while [ $# != 0 ]
+			do
+				case "$1" in
+				"--")	shift && break;;
+				"-"*)	error "${1}: Unknown option" && exit 1;;
+				*)	break;;
+				esac
+				shift
+			done
+			cat "$@"
+			;;
+		"fix")
+			shift
+			opts=""
+			for file in "$@"
+			do
+				case "$file" in
+				"-"*) opts="$opts $file";;
+				*)
+					echo fix $file
+					$git rm $opts --cached "$file"
+					$git add "$file"
+					;;
+				esac
+			done
+			[ $# -gt 0 ] && error "Please do a \"git-$filter disable\", then commit changes that were made, and enable again."
+			;;
+		"track")	shift && do_track "$@";;
+		""|check)
+			[ "$($git config --get hooks.${filter})" == true ] || exit 0
+			if $git diff --cached --numstat $numstat | $grep --quiet -- '-	-	'
+			then
+				echo "Error: binary files found"
+				$git diff $opts --cached --numstat $numstat | $fgrep -- '-	-	' | while read a b c
+				do
+					echo "    $c"
+				done
+				exit 1
+			fi
+			;;
+		*)	echo "git-$filter $1: unknown option";;
+	esac
+}
+
+do_help()
+{
+	error "
+
+Usage: git-$filter <options> - a git plugin script to track binary. It tracks the 
+                                sha256sum instead of checking in the binary file.
+where:
+    init               - initialise the repo for bin file checking
+    check [--all]      - check for binary files in commit quewe or --all the repo.
+    clean [--] [file]  - clean a binary file (which just produces the local file
+                         in an untouched form).
+    smudge [--] [file] - replace file with a shar256sum and file size
+    enable             - enable bin file checking and git pull
+    disable            - disable bin file checking
+    status             - display status information (enabled or disabled...etc)
+    track [file]...    - start tracking file or file patterns or display tracked
+                         files, if no file specified
+    fix <file>...      - fix the files specified (rm --cacched and then re-add)
+"
+}
+
+error()
+{
+	echo "$1" 1>&2
+}
+
+set_commands()
+{
+	git="$(set_command git /usr/bin/git)"
+	sha256sum="$(set_command sha256sum /usr/bin/sha256sum)"
+	wc="$(set_command wc /usr/bin/wc)"
+	fgrep="$(set_command fgrep /bin/fgrep)"
+	grep="$(set_command grep /bin/grep)"
+	cat="$(set_command cat /bin/cat)"
+	chmod="$(set_command chmod /bin/chmod)"
+}
+
+set_command()
+{
+	local alias
+
+	alias="$1"
+	shift
+
+	while [ $# -gt 0 ]
+	do
+		[ -x "$1" ] && echo "$1" && return 0
+		shift
+	done
+
+	echo "echo unable to find command $alias"
+}
+
+do_track()
+{
+	if [ $# == 0 ]
+	then
+		echo "Listing tracked paths"
+		[ -e "${GIT_DIR}/../.gitattributes" ] && $grep -e "\sfilter=${filter}\s" -e "\sfilter=${filter}$" "${GIT_DIR}/../.gitattributes" | while read a b c
+		do
+			echo "    $a"
+		done
+	else
+		for file in "$@"
+		do
+			fileNoSpaces="${file// /[[:space:]]}"
+			match="$(
+				[ -e "${GIT_DIR}/../.gitattributes" ] && $cat "${GIT_DIR}/../.gitattributes" | while read a b c d
+				do
+					[ "$a" == "${fileNoSpaces}" ] && [ "$b" == "filter=${filter}" -o "$c"  == "filter=${filter}" -o "$d" == "filter=${filter}" ] && echo "$a"
+				done
+				)"
+			if [ -z "$match" ]
+			then
+				echo "Tracking $file"
+				echo "$fileNoSpaces filter=${filter}" >> "${GIT_DIR}/../.gitattributes"
+			else
+				echo "$file already supported"
+			fi
+		done
+	fi
+}
+
+do_status()
+{
+	local brm
+
+	echo "Command aliases:"
+	echo "    git       = $git"
+	echo "    sha256sum = $sha256sum"
+	echo "    fgrep     = $fgrep"
+	echo "    grep      = $grep"
+	echo "    cat       = $cat"
+	echo "    chmod     = $chmod"
+	echo
+
+	bmr="$($git config --local --get branch.master.remote)"
+	echo "Config settings:"
+	echo "    hooks.${filter} = $($git config hooks.${filter})"
+	echo "    remote.${bmr}.url = $($git config --local --get remote.${bmr}.url)"
+	echo "    remote.${bmr}.pushurl = $($git config --local --get remote.${bmr}.pushurl)"
+	echo "    filter.${filter}.clean = $($git config --get filter.${filter}.clean)"
+	echo "    filter.${filter}.smudge = $($git config --get filter.${filter}.smudge)"
+}
+
+do_enable()
+{
+	local bmr
+	local url
+	local pushurl
+
+	if [ "$1" == true ]
+	then
+		$git config hooks.${filter} true
+		bmr="$($git config --local --get branch.master.remote)"
+		url="$($git config --local --get remote.${bmr}.url)"
+		set -- $url
+		if [ $# -gt 1 ]
+		then
+			while [ $# != 1 ]; do shift; done
+			$git config --local remote.${bmr}.url "$1"
+
+		fi 
+		echo "$filter enabled"
+
+	elif [ "$1" == false ]
+	then
+		$git config hooks.${filter} false
+		bmr="$($git config --local --get branch.master.remote)"
+		if [ -n "$bmr" ]
+		then
+			url="$($git config --local --get remote.${bmr}.url)"
+			pushurl="$($git config --local --get remote.${bmr}.pushurl)"
+			set -- $url
+			[ $# == 1 ] && $git config --local remote.${bmr}.url "disabled $1"
+			while [ $# != 1 ]; do shift; done
+			[ -z "$pushurl" ] && [ -n "$1" ] && $git config --local remote.${bmr}.pushurl  "$1"
+		fi
+		echo "$filter disabled"
+	fi
+}
+
+sha256sum()
+{
+	local sha
+	local size
+
+	if [ $# -gt 0 ]
+	then
+		echo "oid sha256:$(set -- $($sha256sum "$1"); echo $1)"
+		echo "size $(set -- $($wc --bytes "$1"); echo $1)"
+	else
+		set -- $(tee >(set -- $($sha256sum); echo "sha256:$1" ) >(echo "size: $($wc --byte)") > /dev/null)
+		for data in "$@"
+		do
+			case "$data" in
+			"-")	;;
+			"sha256:"*)	sha="$data";;
+			*)		size="$data";;
+			esac
+		done
+		echo "oid $sha"
+		echo "size $size"
+	fi
+}
+
+hook_add()
+{
+	local hook="$1"
+	local line="$2"
+
+	# need to escape \\ and [ and ] in the regex pattern
+	# but still need to write the original line only
+	regex="${line//\\/\\\\}"
+	regex="${regex//[/\\[}"
+	regex="${regex//]/\\]}"
+
+	[ $# == 2 ] || return 1
+
+	if [ ! -d "$GIT_DIR/hooks" ]
+	then
+		echo "Error: unable to find hooks directory $GIT_DIR/hooks"
+		return 1
+	fi
+
+	[ -e "$GIT_DIR/hooks/${hook}" ] || echo "#!/bin/bash" > "$GIT_DIR/hooks/${hook}"
+
+	if [  "$($grep --count "^${regex}\$" "$GIT_DIR/hooks/${hook}")" == 0 ]
+	then
+		echo "${line}" >> "$GIT_DIR/hooks/${hook}"
+		echo "hook ${hook} updated." 
+	fi
+
+	$chmod 755 "$GIT_DIR/hooks/${hook}"
+}
+
+main "$@"
+

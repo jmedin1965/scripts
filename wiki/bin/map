@@ -1,0 +1,117 @@
+#
+# Mount a novell share to the users home directory
+#
+
+#
+#
+root="no"
+drive=""
+server=""
+volume=""
+path=""
+user=$(whoami)
+mounthome=/mnt/map
+linkhome="$HOME/Desktop/Drives"
+group=adm
+ncpmountEV=1
+
+if [ $# -lt 1 ]; then
+	echo "Usage: $(basename $0) drive:=server/volume:/path"
+	exit 1
+fi
+
+case $1 in
+R)
+	root="yes"
+	shift
+	;;
+RO)
+	root="yes"
+	shift
+	;;
+ROO)
+	root="yes"
+	shift
+	;;
+ROOT)
+	root="yes"
+	shift
+	;;
+esac
+
+if [ $# -lt 1 ]; then
+	echo "Usage: $(basename $0) drive:=server/volume:/path"
+	exit 1
+fi
+
+drive=${1/:=*/}
+
+server=${1/$drive:=/}
+server=${server/\/*/}
+
+volume=${1/$drive:=$server\//}
+volume=${volume/:*/}
+
+path=${1/*:/}
+
+# Fix so that things work if user just types "map server"
+[ "$server" == "$volume" ] && volume=""
+[ "$server" == "$path" ] && path=""
+
+if [ ! -d "$mounthome/$user" ]
+then
+	mkdir -p "$mounthome/$user"
+	chmod 700 "$mounthome/$user"
+	chown $user "$mounthome/$user"
+fi
+
+if [ ! -d "$mounthome/$user/$server" ]
+then
+	mkdir -p "$mounthome/$user/$server"
+	chmod 700 "$mounthome/$user/$server"
+	chown $user:$group "$mounthome/$user/$server"
+fi
+
+[ ! -d "$linkhome" ] && mkdir -p "$linkhome"
+
+
+
+if [ $(mount | fgrep -c " $mounthome/$user/$server ") == 0 ]
+then
+	[ -f "$HOME/.mapdata" ] && uname=$(cat "$HOME/.mapdata")
+
+	echo -n "username [$uname] :"
+	read uname
+
+	[ -z "$uname" ] && [ -f "$HOME/.mapdata" ] && uname=$(cat "$HOME/.mapdata")
+
+	[ -n "$uname" ] && echo "$uname" > "$HOME/.mapdata"
+
+	ncpmount -s -U "$uname" -A "$server" -u "$user" -g "$group" -S "$server" -m "$mounthome/$user/$server"
+	ncpmountEV=$?
+fi
+
+if [ -d "$mounthome/$user/$server/$volume/$path" ]
+then
+	[ -e "$HOME/Desktop/$drive" ]	&& rm -f "$HOME/Desktop/$drive"
+	ln_path="$mounthome"
+	[ -n "$user" ]			&& ln_path="$ln_path/$user"
+	[ -n "$server" ]		&& ln_path="$ln_path/$server"
+	[ -n "$volume" ]		&& ln_path="$ln_path/$volume"
+	[ -h "$linkhome/$drive" ] 	&& rm -f "$linkhome/$drive"
+	rm -f "$linkhome/$drive"
+	ln -sf "$ln_path" "$linkhome/$drive"
+fi
+
+echo "root=$root"
+echo "drive=$drive"
+echo "server=$server"
+echo "volume=$volume"
+echo "path=$path"
+echo "uname=$uname"
+echo "ln -fs \"$ln_path\" \"$linkhome/$drive\""
+echo "ncpmountEV=$ncpmountEV"
+
+[ "$ncpmountEV" == 0 ] && konqueror "$linkhome/$drive" &
+
+exit 0

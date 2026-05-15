@@ -1,0 +1,128 @@
+#!/bin/bash
+#
+# look for and track binary files as a sha256sum and prevent binary commits
+#
+# REF: https://stackoverflow.com/questions/20226132/is-there-a-git-hook-which-can-prevent-binary-check-ins
+#
+
+#
+# Join stderr to stdout
+#
+#exec 1>&2
+
+. "$(/usr/bin/dirname "$0")/git.functions"
+
+main()
+{
+	git=""
+	mv=""
+	rm=""
+	chmod=""
+	basename=""
+	dirname=""
+	stat=""
+
+	set_commands
+
+	backup_dir="/backup/git-backups"
+
+	temp_repo="$($basename "$pwd").tmp"
+	parent_repo="$($dirname "$GIT_DIR")"
+	bare_repo="${backup_dir}${pwd}.git"
+	uid="$($stat -c "%U" . )"
+	gid="$($stat -c "%G" . )"
+
+#	error "debug: Called: argc = $#, argv = $*"
+
+	case "$1" in
+		"--help")	do_help;;
+		"status"|"")	do_status;;
+		"init")
+			if [ -d ./.git ]; then
+				log "This is already a git repo."
+			else
+				[ -d "./$temp_repo" ] && die "./$temp_repo: dir already exists."
+				[ -d "$parent_repo" ] || die "Unable to find parent git repo."
+
+				log "Cloning repo $parent_repo"
+				$git clone "$parent_repo" "./$temp_repo"
+				cd "./$temp_repo" || die "./$temp_repo: unable to enter cloned repo"
+
+				log "remove remote repo references."
+				$git remote rm origin
+
+				log "filter out unwanted folders and logs."
+				$git filter-branch --prune-empty --subdirectory-filter .${pwd#$parent_repo}
+
+				log "move new .git to $pwd"
+				$mv .git ..
+
+				log "remove temp repo."
+				cd .. || die "unable to enter repo path"
+				$rm -r "$temp_repo"
+			fi
+
+			if [ -d "$bare_repo" ]; then
+				log "$bare_repo: repo already exists."
+			else
+				log "create new bare repo: $bare_repo"
+				$git init --bare "$bare_repo"
+			fi
+
+			rou="$($git config --local --get remote.origin.url)"
+			if [ "$rou" != "$bare_repo" ]; then
+				log "updating remote.origin.url from: $rou"
+				log "updating remote.origin.url   to: $bare_repo"
+				$git remote add origin "$bare_repo"
+			else
+				log "remote.origin.url is already set to: $bare_repo"
+			fi
+
+			log "push master branch"
+			$git push --set-upstream origin master
+
+			log "all finished.
+			"
+
+			;;
+		*)	echo "git-$filter $1: unknown option";;
+	esac
+}
+
+do_help()
+{
+	error "
+
+Usage: git-$filter <options> - a git plugin script to track binary. It tracks the 
+                                sha256sum instead of checking in the binary file.
+where:
+    init               - initialise the repo for bin file checking
+    check [--all]      - check for binary files in commit quewe or --all the repo.
+    clean [--] [file]  - clean a binary file (which just produces the local file
+                         in an untouched form).
+    smudge [--] [file] - replace file with a shar256sum and file size
+    enable             - enable bin file checking and git pull
+    disable            - disable bin file checking
+    status             - display status information (enabled or disabled...etc)
+    track [file]...    - start tracking file or file patterns or display tracked
+                         files, if no file specified
+    fix <file>...      - fix the files specified (rm --cacched and then re-add)
+"
+}
+
+do_status()
+{
+	local brm
+
+	do_status_info
+
+	do_status_aliases
+
+	bmr="$($git config --local --get branch.master.remote)"
+	echo "Config settings:"
+	echo "    remote.${bmr}.url = $($git config --local --get remote.${bmr}.url)"
+	echo "    remote.${bmr}.pushurl = $($git config --local --get remote.${bmr}.pushurl)"
+}
+
+main "$@"
+

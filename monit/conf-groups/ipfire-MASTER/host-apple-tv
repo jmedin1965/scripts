@@ -1,0 +1,4 @@
+check host host-apple-tv with address 10.11.1.100
+    if failed ping4
+        include /etc/monit/templates/flapping-standard
+            then alert

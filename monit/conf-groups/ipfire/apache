@@ -1,0 +1,34 @@
+check process apache with pidfile /var/run/httpd.pid
+	group www
+	group apache
+	start "/etc/init.d/apache start" with timeout 60 seconds
+	stop  "/etc/init.d/apache stop" with timeout 60 seconds
+	if failed host 127.0.0.1 port 81 protocol http
+			include /etc/monit/templates/flapping-standard
+			then restart
+	include "/etc/monit/templates/alert-reminder-std"
+	depend apache_bin
+	depend apache_ctl
+	depend apache_rc
+
+check file apache_bin with path /usr/sbin/httpd
+	group apache
+	include /etc/monit/templates/rootbin
+
+check file apache_ctl with path /usr/sbin/apachectl
+	group apache
+	include /etc/monit/templates/rootbin
+
+check file apache_rc with path /etc/init.d/apache
+	group apache
+	include /etc/monit/templates/rootinit.dbin
+
+# The file apache_ipfire_interface_ssl_00.conf is generated from
+check file apache_ipfire_interface_ssl.conf with path /etc/httpd/conf/vhosts.d/ipfire-interface-ssl.conf
+	if failed SHA1 checksum then exec "/etc/monit/scripts/generate-apache_ipfire_interface_ssl_00.conf"
+
+# The apache local config file
+check file apache_ipfire_interface_ssl_00.conf with path /etc/httpd/conf/vhosts.d/ipfire-interface-ssl-00.conf
+	if not exist            then exec "/etc/monit/scripts/generate-apache_ipfire_interface_ssl_00.conf"
+	if failed SHA1 checksum then exec "/etc/monit/scripts/generate-apache_ipfire_interface_ssl_00.conf"
+

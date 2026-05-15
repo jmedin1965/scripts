@@ -1,0 +1,7 @@
+
+
+check file check-email-alert.local with path /etc/monit/conf.d/email-alert.local
+	if failed SHA1 checksum then
+		exec "/etc/monit/scripts/email.local-generate"
+	if not exist then
+		exec "/etc/monit/scripts/email.local-generate"

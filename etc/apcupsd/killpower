@@ -1,0 +1,62 @@
+#!/bin/sh
+#
+# This shell script if placed in /etc/apcupsd
+# will be called by /etc/apcupsd/apccontrol before
+# apcupsd kills the power in the UPS. You probably
+# need to edit this to mount read-only /usr and /var,
+# otherwise apcupsd will not run.
+
+# Choose one of this solution
+#mount -n -o ro /usr
+#mount -n -o ro /var
+#
+#mount | awk '/ext2/ { print $3 }' | while read line; do
+#	mount -n -o ro,remount $line
+#done
+#mount | awk '/ext3/ { print $3 }' | while read line; do
+#	mount -n -o ro,remount $line
+#done
+#mount | awk '/reiserfs/ { print $3 }' | while read line; do
+#	mount -n -o ro,remount $line
+#done
+
+#exit 0
+
+if [ -n "$SCRIPTDIR" ]; then
+
+	# on killpower, remount / as rw so we can log stuff.
+	fs_remount / rw
+
+	[ -f "$SCRIPTDIR/config" ] &&. "$SCRIPTDIR/config"
+
+	MSG="$HOSTNAME UPS $1 sending powerkill."
+
+	if [ "$DEBUG" -gt 0 ]; then
+		log "DEBUG=$DEBUG: not doing ${APCUPSD} --killpower"
+	else
+		log "${APCUPSD} --killpower"
+		sleep 10
+		${APCUPSD} --killpower
+	fi
+
+	log  "Apccontrol has done: ${APCUPSD} --killpower on UPS ${1}"
+	echo "Apccontrol has done: ${APCUPSD} --killpower on UPS ${1}" | (${WALL} 2>/dev/null || cat)
+
+	echo "$MSG" | (${WALL} 2>/dev/null || cat)
+	(
+		echo "Subject: $MSG"
+		echo " "
+		echo "$MSG"
+		echo " "
+		/sbin/apcaccess status
+		echo " "
+		[ -f "$LOG_F" ] && /bin/cat "$LOG_F"
+	) | $APCUPSD_MAIL -s "$MSG" $SYSADMIN
+
+	fs_remount / ro
+else
+	echo "error: please call this script from apccontrol, not directly"
+fi
+
+# don't return back to apccontrol
+exit 99

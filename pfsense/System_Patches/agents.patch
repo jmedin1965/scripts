@@ -1,0 +1,11 @@
+diff -ur -N a/src/usr/local/etc/nginx/nginx.conf b/src/usr/local/etc/nginx/nginx.conf
+--- a/src/usr/local/etc/nginx/nginx.conf	2024-08-30 14:24:00.955432000 +1000
++++ b/src/usr/local/etc/nginx/nginx.conf	2024-08-30 14:24:00.956544000 +1000
+@@ -13,6 +13,7 @@
+ 
+ #pid        logs/nginx.pid;
+ 
++# patch agents applied, this is just a marker
+ 
+ events {
+     worker_connections  1024;

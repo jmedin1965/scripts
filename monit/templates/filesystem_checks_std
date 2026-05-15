@@ -1,0 +1,9 @@
+
+    if changed fsflags then alert
+    if inode usage > 90% then alert
+    if space usage > 90% then alert
+    if read rate  > 2.6 MB/s then alert
+    if write rate > 4.0 MB/s then alert
+    if read rate  > 500 operations/s then alert
+    if write rate > 500 operations/s then alert
+

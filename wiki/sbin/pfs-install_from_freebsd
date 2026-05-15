@@ -1,0 +1,114 @@
+#!/bin/sh
+
+#
+# REF: https://n8henrie.com/2023/01/quickly-add-freebsd-packages-to-pfsense/
+#
+
+prog=`/usr/bin/basename "$0"`
+packagesite_d="/var/cache"
+opt_yes=""
+opt_dry_run=""
+
+main()
+{
+	while :
+	do
+		case "$1" in
+		"-n")
+			opt_dry_run="true"
+			shift
+			;;
+		"-y")
+			opt_yes="true"
+			shift
+			;;
+		"-"*)
+			echo "unknown option $1" > /dev/stderr
+			usage
+			;;
+		*)
+			break;;
+		esac
+	done
+
+	if [ "$1" == -y ]
+	then
+		opt_yes="true"
+		shift
+	fi
+	[ -z "$1" ] && usage
+	[ -x /usr/local/bin/jq ] || /usr/sbin/pkg install -y jq
+
+	ABI=`get_abi`
+	base_url="https://pkg.freebsd.org/$ABI/latest"
+
+	echo
+	echo "info: ABI=$ABI"
+	echo "info: base_url=$base_url"
+	
+	get_pkg "$1"
+}
+
+usage()
+{
+	echo "Usage: $prog [-n] [-y] <package>" > /dev/stderr
+	echo "where:" > /dev/stderr
+	echo "-y - install without asking [y/N]" > /dev/stderr
+	echo "-n - dry-run" > /dev/stderr
+	exit 1
+}
+
+get_abi()
+{
+	/usr/sbin/pkg -vv | /usr/bin/grep "^ABI =" | /usr/bin/sed 's,.*"\(.*\)".*,\1,g'
+}
+
+get_pkg()
+{
+	if [ -n "$1" ]
+	then
+		pkgname="$1"
+		packagesite_f="$packagesite_d/packagesite.$ABI.yaml"
+
+		echo "info: packagesite.yaml = $packagesite_f"
+
+		f_date="0"
+		if [ -e "$packagesite_f" ]
+		then
+			f_date="`/usr/bin/stat -f "%m" "$packagesite_f"`"
+		fi
+		date="`/bin/date +%s`"	
+
+		# if file age greater than a day, fetch a new copy
+		if [ "`/bin/expr "$date" - "$f_date"`" -gt "86400"  ] 
+		then
+			echo "info: fetch new packagesite.yaml file"
+			/usr/local/bin/curl -s "${base_url}/packagesite.pkg" | \
+				tar -xzf- --to-stdout packagesite.yaml > "$packagesite_f"
+		fi
+
+		echo "info: pkgname=$pkgname"
+
+		pkg="`/usr/local/bin/jq -r --arg pkgname "${pkgname}" 'select(.name == $pkgname) | .path' < "$packagesite_f"`"
+
+		if [ -n "$pkg" ]
+		then
+			echo "info: pakage=$pkg"
+			if [ "$opt_dry_run" = "true" ]
+			then
+				echo "dry-run: pkg add -f \"${base_url}/${pkg}\""
+
+			elif [ -n "$opt_yes" ]
+			then
+				echo "y" | pkg add -f "${base_url}/${pkg}"
+			else
+				pkg add -f "${base_url}/${pkg}"
+			fi
+		else
+			echo "err: unable to find package $1"
+		fi
+	fi
+}
+
+main "$@"
+

@@ -1,0 +1,35 @@
+
+(
+	echo argc: $#
+	i=0
+	while [  $# -gt 0 ]
+	do
+		i=$(expr $i + 1)
+		echo "arg $i: \"$1\""
+		shift
+	done
+
+	echo "---------mail body---------"
+	export b=n
+	export i=0
+	while read line
+	do
+		i=$(expr $i + 1)
+
+		case "$line" in
+		"")	
+			b="y"
+			echo "$i: $b:  body=y"
+			;;
+		*)
+			if [ "$b" == y ]
+			then
+				echo "$i: $b: y: $line"
+			else
+				echo "$i: $b: n: $line"
+			fi
+			;;
+		esac
+	done
+	echo "---------mail body---------"
+) > /tmp/mailbody.txt

@@ -1,0 +1,85 @@
+#!/bin/bash
+
+[ -n "$DEBUG" ] || export DEBUG="0"
+prog="$(/usr/bin/basename "$0")"
+id=""
+
+main()
+{
+    for arg in "$@"
+    do
+        case "$arg" in
+        -v)
+            ((DEBUG++))
+            shift
+            ;;
+        -*)
+            shift
+            ;;
+        *)
+            id="$arg"
+            break
+            ;;
+        esac
+    done
+
+    info argc: $# argv: "$@"
+    info SSH_BW_ID = $SSH_BW_ID
+    info got id=$id
+
+    if [ -n "$SSH_BW_ID" ]
+    then
+        bw_get password "$SSH_BW_ID"
+    else
+        do_ssh_bw "$id"
+    fi
+}
+
+bw_get()
+{
+    info bw_get $1 $2
+
+    [ -n "$1" ] || return 1
+    [ -n "$2" ] || return 1
+
+    bw get "$1" "$2"
+}
+
+do_ssh_bw()
+{
+    local id="$1"
+
+    if [ -n "$id" ]
+    then
+        info id is not empty
+
+#        tmp_f="$(/usr/bin/mktemp)"
+#        info got tmp file $tmp_f
+
+#        if [ -n "$tmp_f" ]
+#        then
+            export SSH_ASKPASS_REQUIRE="prefer"
+#            export SSH_ASKPASS="$tmp_f"
+            export SSH_ASKPASS="$0"
+            export SSH_BW_ID="$id"
+
+            info "SSH_BW_ID   = $SSH_BW_ID"
+            info "SSH_ASKPASS = $SSH_ASKPASS"
+
+#            echo "#!/bin/sh" > "$tmp_f"
+#            echo "bw get password "$id"" >> "$tmp_f"
+#            /usr/bin/chmod 700 "$tmp_f"
+#        fi
+
+        ssh "$@"
+#        /bin/rm -f "$tmp_f"
+    fi
+}
+
+info()
+{
+    [ -n "$DEBUG" -a "$DEBUG" -gt 0 ] && echo "$prog:" "$@" >> /tmp/ask.log
+}
+
+
+main "$@"
