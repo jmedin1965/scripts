@@ -44,19 +44,35 @@ for arg in "$@"
 do
 	case "$arg" in
 	"-d"*)
-		arg="$1"
+		# remove leading -d
 		arg="${arg#-d}"
-		(( DEBUG = DEBUG + 1 ))
-		shift
 
-		if [ -z "${arg//d/}" ]; then
-			arg="${#arg}"
-			(( DEBUG = DEBUG + arg ))
+		# if what is left is empty
+		if [ -z "${arg}" ]
+		then
+			(( DEBUG = DEBUG + 1 ))
+
+		# else if there is another d
+		elif [ "${arg#d}" != "${arg}" ]
+		then
+			(( DEBUG = DEBUG + 1 ))
+			# while there is another d, increase DEBUG by 1
+			while [ "${arg#d}" != "${arg}" ]
+			do
+				(( DEBUG = DEBUG + 1 ))
+				arg="${arg#d}"
+			done
 		fi
+
+		# if there is anithing left, assume it's a number, and increase by that number
+		[ -n "${arg}" ] && (( DEBUG = DEBUG + arg ))
+
+		shift
 		;;
 	*)	break;;
 	esac
 done
+
 
 # DNS domain
 domain=$(/bin/hostname -d)
@@ -114,7 +130,6 @@ name=${4%%.*}
 supplied_domain=${4#*.}
 [ "$supplied_domain" == "$4" ] && supplied_domain="$domain"
 supplied_domain=".$supplied_domain"
-
 
 usage()
 {
@@ -195,6 +210,7 @@ UPDATE
         ;;
 add)
     _KERBEROS
+klist
 
         if [ -n "$name" ]; then
             nsupdate -g ${NSUPDFLAGS} << UPDATE
