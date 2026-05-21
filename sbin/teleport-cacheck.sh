@@ -77,9 +77,9 @@ if [ -z "$teleport" ]
 then
   ports=("443" "444" "3080")
   # lets find the teleport server and port by checking resolv.conf and th eport list above
-  for try in $(grep -e "^search" -e "^domain " /etc/resolv.conf ) 
+  for try in $(grep -e "^search\s" -e "^domain\s" /etc/resolv.conf ) 
   do
-    if [ "$try" != "search" ]
+    if [ "$try" != "search" -a "$try" != "domain" ]
     then
       for port in "${ports[@]}"
       do
