@@ -108,7 +108,7 @@ then
   cert="${cert##cert-authority }"
 
   # Check for sshd_conf include line
-  if [ "$(grep -e  '^Include /etc/ssh/sshd_config.d/*.conf' -c /etc/ssh/sshd_config )" == "0" ]
+  if [ "$(grep -e  '^Include /etc/ssh/sshd_config.d/\*\.conf' -c /etc/ssh/sshd_config )" == "0" ]
   then
     info "sshd_conf include is missing"
     mv /etc/ssh/sshd_config /etc/ssh/sshd_config.bak
@@ -121,6 +121,41 @@ Include /etc/ssh/sshd_config.d/*.conf
     chmod 644 /etc/ssh/sshd_config
     chmod 755 /etc/ssh/sshd_config.d
   fi
+
+  # fix my mistake
+  while [ "$(grep -e  '^Include /etc/ssh/sshd_config.d/\*\.conf' -c /etc/ssh/sshd_config )" != "1" ]
+  do
+    info looking
+
+    found="false"
+    if [ "$(head -n 1 /etc/ssh/sshd_config)" == "#" ]
+    then
+      found="true"
+
+    elif [ "$(head -n 1 /etc/ssh/sshd_config)" == "Include /etc/ssh/sshd_config.d/*.conf" ]
+    then
+      found="true"
+
+    elif [ "$(head -n 1 /etc/ssh/sshd_config)" == "" ]
+    then
+      found="true"
+    fi
+
+    info found=$found
+
+    if [ "$found" == "true" ]
+    then
+      info found
+      mv /etc/ssh/sshd_config /etc/ssh/sshd_config.old
+      tail -n +2 /etc/ssh/sshd_config.old > /etc/ssh/sshd_config
+    else
+      info not found
+      break
+    fi
+
+  done
+
+  info done looking
 
   # check if certificate file is the same as what we just got above
   # rotate to old and get new one if needed
