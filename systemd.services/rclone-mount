@@ -11,11 +11,11 @@ rclone_opts=(
     "--vfs-cache-mode"
     "full"
     "--vfs-cache-max-age"
-    "1560h"
+    "1096dh"
     "--vfs-cache-min-free-space"
     "10g"
     "--dir-cache-time"
-    "60m"
+    "1096d"
     "--poll-interval"
     "30s"
     "--uid"
@@ -108,10 +108,18 @@ install()
 Description=Rclone Mount Service for Instance %i
 After=network-online.target
 Wants=network-online.target
+Before=remote-fs.target
 
 [Service]
 Type=simple
 User=root
+#TimeoutStartSec=180s
+TimeoutStartSec=1200s
+#TimeoutStartSec=inf
+#ExecStartPost=/bin/sleep 30
+ExecStartPost=/bin/bash -c 'while [ ! -d "/mnt/%i/Documents" ]; do echo sleeping; sleep 5; done'
+ExecStartPost=/bin/sleep 5
+ExecStartPost=/bin/systemctl restart nfs-kernel-server.service
 END
     echo -n "ExecStart=$rclone mount \"%i:\" \"/mnt/%i\"" >> "$tmp_name"
 
@@ -138,8 +146,8 @@ END
         systemctl start rclone-mount@$1
     else
         echo "don't forger to enable and start your instance by issuing the following command"
-        systemctl enable rclone-mount@instance
-        systemctl start rclone-mount@instance
+        echo systemctl enable rclone-mount@instance
+        echo systemctl start rclone-mount@instance
         echo where instance is your rclone instance name
     fi
 }

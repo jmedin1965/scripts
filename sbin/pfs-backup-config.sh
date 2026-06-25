@@ -128,6 +128,7 @@ init()
     inst_pkg git
     inst_pkg pfSense-pkg-Backup
     inst_pkg rsync
+    inst_pkg net-snmp
     inst_pkg bash
     [ -L /bin/bash ] || ln -sf /usr/local/bin/bash /bin/bash
 }

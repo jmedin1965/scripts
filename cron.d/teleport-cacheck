@@ -1,0 +1,9 @@
+#
+# cron.d script to check and update teleport public ssh ca
+#
+
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+* 0 * * * root /usr/local/scripts/sbin/teleport-cacheck.sh
+
