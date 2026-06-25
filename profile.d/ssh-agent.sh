@@ -5,7 +5,7 @@ PATH="/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
 DEBUG="1"
 msg()
 {
-    if [ "$DEBUG" -gt 0 ]
+    if [ "$DEBUG" -gt 0 ] && [[ $- == *i* ]]
     then
         echo "msg:" "$@"
     fi
