@@ -1,0 +1,30 @@
+#!/bin/bash
+
+if [ ! -x /usr/bin/curl -o ! -x /usr/bin/funzip -o ! -x /usr/bin/jq ]
+then
+  echo "installing requores apt packages..."
+  sudo apt update && sudo apt install curl unzip jq -y
+fi
+
+fetch_url="https://bitwarden.com/download/?app=cli&platform=linux"
+bw_app="/usr/local/bin/bw"
+version="$(curl -s https://api.github.com/repos/bitwarden/clients/releases | jq -r 'first( .[] | select(.name | startswith("CLI v")) | .name )' | sed 's:.*v::')"
+
+local_version="0.0.0"
+if [ -e "$bw_app" ]
+then
+  local_version="$("$bw_app" --version)"
+fi
+
+echo "latest internet version is $version"
+echo "local version is           $local_version"
+
+if [ "$version" == "$local_version" ]
+then
+  echo "local version is up to date"
+else
+  echo "fetching version $version..."
+  curl -sSL "$fetch_url" | funzip > "$bw_app" && chmod +x "$bw_app"
+fi
+
+

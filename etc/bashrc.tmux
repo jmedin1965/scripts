@@ -18,7 +18,7 @@ elif [[ "$TERM" =~ screen ]] || [[ "$TERM" =~ tmux ]] || [ -n "$TMUX" ]; then
 else
   # find out who you sudo'd from
   tmux_session="$(logname 2>/dev/null)"
-  tmux_session="${tmux_session:=$USERNAME}"
+  tmux_session="${tmux_session:=$USER}"
   # display some info
   echo "+-----------------------------------+"
   echo "| tmux = $(which tmux)         "

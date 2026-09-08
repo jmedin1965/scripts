@@ -2,7 +2,7 @@
 
 main()
 {
-    #DEBUG="1"
+    DEBUG="1"
     log="/tmp/bw.log"
     args=()
     bw="/usr/local/bin/bw"
@@ -35,6 +35,7 @@ main()
         done
 
         info "bw command = $command"
+        info "pinentry = $pinentry"
 
         # if all we want is to lock the vault, then just do it. Don't unlock first
         if [ "$command" == lock -o "$command" == logout ]
@@ -48,11 +49,18 @@ main()
             info "do command:" "$bw" "$@"
             "$bw" "$command" --check
 
+        elif [ "$command" == ssh ]
+        then
+          check_and_unlock "$opt"
+          info "load ssh keys"
+          do_ssh_load "$opt"
+
         elif [ "$command" != login ]
         then
             check_and_unlock "$opt"
             info "do command:" "$bw" "$@"
             "$bw" "$@"
+
         else
             info "do command:""$bw"  "$@"
             "$bw" "$@"
@@ -74,17 +82,53 @@ do_init()
     export SHELL="/bin/sh"
     export PATH="/usr/local/scripts/bin:/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
 
-    for prog in pinentry xhost tty rm mount grep fgrep printf wget unzip dirname keyctl
+    for prog in pinentry tty rm mount grep fgrep printf wget unzip dirname keyctl jq ssh-add
     do
         if which $prog > /dev/null 2>&1
         then
-            eval $prog=\"$(which "$prog")\"
-        else
+            eval ${prog//-/_}=\"$(which "$prog")\"
+          else
             err "Unable for find $prog program"
         fi
     done
 
+    my_tty="/dev/tty"
+
     info "do init stuff done"
+}
+
+do_ssh_load()
+{
+  # Make sure ssh-agent is available
+  if [[ -z "${SSH_AUTH_SOCK:-}" ]]; then
+    echo "No ssh-agent detected. Start one first, for example:"
+    echo '  eval "$(ssh-agent -s)"'
+    exit 1
+  fi
+
+  # I got this code from ChatGPT and changed it slightly to load the key from a pipe instead of a file
+  bw list items --session "$BW_SESSION" \
+  | jq -r '
+      .[]
+      | select(.type == 5)
+      | {
+          name,
+          privateKey: (
+            .sshKey.privateKey
+            // (.fields[]? | select(.name | test("private.*key"; "i")) | .value)
+          )
+        }
+      | select(.privateKey != null and .privateKey != "")
+      | @base64
+    ' \
+  | while IFS= read -r encoded; do
+      name="$(printf '%s' "$encoded" | base64 --decode | jq -r '.name')"
+      private_key="$(printf '%s' "$encoded" | base64 --decode | jq -r '.privateKey')"
+
+      echo "Adding SSH key: $name"
+      echo "$private_key" | ssh-add -
+      #ssh-add "$keyfile"
+    done
 }
 
 get_pinentry()
@@ -114,7 +158,7 @@ msg()
 {
     if [ -x "$pinentry" ]
     then
-        echo -e "setdesc $*\nMESSAGE\n" | "$pinentry" -T "$tty" > /dev/null 2>&1
+        echo -e "setdesc $*\nMESSAGE\n" | "$pinentry" -T "$my_tty" > /dev/null 2>&1
     else
         echo "Error:" "$@" > /dev/stderr
     fi
@@ -163,9 +207,11 @@ bw_unlock()
             (( i++ ))
             setprompt="Enter Master Password try ${i} of ${max}:"
 
-            info "$setprompt"
+            info "setprompt=$setprompt"
+            info "tty=$tty"
+            info "ssh_add=$ssh_add"
 
-            BW_PASSWORD_ALL="$(echo -e "setdesc $setdesc\nsetprompt $setprompt\nGETPIN\n" | "$pinentry" -T "$tty" 2>&1)"
+            BW_PASSWORD_ALL="$(echo -e "setdesc $setdesc\nsetprompt $setprompt\nGETPIN\n" | "$pinentry" -T "$my_tty" 2>&1)"
             ev="$?"
 
             BW_PASSWORD="$( echo "$BW_PASSWORD_ALL" | "$grep" "^D " )"
@@ -173,7 +219,6 @@ bw_unlock()
 
             BW_PASSWORD_ERR="$( echo "$BW_PASSWORD_ALL" | "$grep" "^ERR " )"
             BW_PASSWORD_ERR=${BW_PASSWORD_ERR#ERR }
-
 
             info "Password is in: BW_PASSWORD, ev=$ev"
             info "BW_PASSWORD_ERR=$BW_PASSWORD_ERR"
@@ -198,6 +243,9 @@ bw_unlock()
                     info got BW_SESSION=$BW_SESSION
                     #echo "$BW_SESSION" > "${tmp}/${bw_session_f}"
                     echo -n "$BW_SESSION" | "$keyctl" padd user "BW_SESSION" @u > /dev/null
+                    info "session save to keyctl ev = $?"
+
+                    info "saved BW_SESSION=$(keyctl request user "BW_SESSION" @u 2>/dev/null)"
                     break
                 else
                     unset BW_PASSWORD
@@ -233,10 +281,13 @@ check_and_unlock()
     then
         info "bw is unlocked."
         #[ -n "$BW_SESSION" ] && echo -n "$BW_SESSION" > "${tmp}/${bw_session_f}"
-        [ -n "$BW_SESSION" ] && echo -n "$BW_SESSION" | "$keyctl" padd user "BW_SESSION" @u > /dev/null
+        [ -n "$BW_SESSION" ] && echo -n "$BW_SESSION" | "keyctl" padd user "BW_SESSION" @u > /dev/null
 
     else
         info "try to use saved session key."
+
+        keyctl link @u @s # grant session access to user keys
+
         export BW_SESSION="$( id=$(keyctl request user "BW_SESSION" @u 2>/dev/null) \
             && keyctl print "$id")"
 
