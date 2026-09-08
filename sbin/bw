@@ -76,7 +76,7 @@ do_init()
 
     for prog in pinentry xhost tty rm mount grep fgrep printf wget unzip dirname keyctl
     do
-        if which -s $prog
+        if which $prog > /dev/null 2>&1
         then
             eval $prog=\"$(which "$prog")\"
         else
