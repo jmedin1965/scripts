@@ -237,7 +237,7 @@ sshd_config_d()
         then
           ln -fs "$f" "$destfile"
           info "  $?: update link"
-          systemctl restart sshd.service
+          service sshd restart
         else
           info "  existing file is ok"
         fi
