@@ -1,0 +1,11 @@
+#
+# cron.d script to check and update teleport public ssh ca
+#
+
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+*/30  0-8  * * 1-5 root /usr/local/scripts/sbin/volumio-do.sh pause
+*/5   9-18 * * 1-5 root /usr/local/scripts/sbin/volumio-do.sh play
+*/30 19-23 * * 1-5 root /usr/local/scripts/sbin/volumio-do.sh pause
+#*/30     * * * 0,6 root /usr/local/scripts/sbin/volumio-do.sh pause

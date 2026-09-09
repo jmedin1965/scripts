@@ -1,0 +1,12 @@
+[Unit]
+Description=noVNC Web Client Proxy
+After=x11vnc.service
+
+[Service]
+Type=simple
+ExecStart=/usr/bin/websockify --web /usr/share/novnc/ 6080 localhost:5900
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=graphical.target
