@@ -1,7 +1,6 @@
 #!/bin/bash
 
-apt-get update
-apt-get install -y vim git curl x11vnc novnc websockify tmux logrotate fortune-mod fortunes cron
+apt-get install -y  x11vnc novnc websockify tmux logrotate cron
 
 if [ ! -e /etc/x11vnc.pass ]
 then
