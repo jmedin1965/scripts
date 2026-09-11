@@ -211,8 +211,15 @@ systemd()
         info "  process: $f"
         ln -sf "$f" /etc/systemd/system && systemctl daemon-reload
         f="$(basename "$f")"
-        systemctl enable $f
-        systemctl is-active $f || systemctl start $f
+        case "$f" in
+          *@.service)
+            info "not enabling @.service template"
+            ;;
+          *)
+            systemctl enable $f
+            systemctl is-active $f || systemctl start $f
+            ;;
+        esac
       fi
     done
   fi
