@@ -13,6 +13,8 @@ server_config="$git_repo_local/server-config"
 prog="$(basename "$0")"
 prog_full="$(readlink -f "$0")"
 
+info_indent="0"
+
 main()
 {
   # clone the repo if it does not exist, else git pull
@@ -82,6 +84,7 @@ main()
   fi
 
   info "do server scripts"
+  which apt-get > /dev/null 2>&1 && do_scripts "$server_config/apt-get"
   [ -n "$ID" ] && do_scripts "$server_config/os/$ID"
   [ -n "$VERSION_ID" ] && do_scripts "$server_config/os/$ID$VERSION_ID"
   if [ -n "$HOSTNAME" ]

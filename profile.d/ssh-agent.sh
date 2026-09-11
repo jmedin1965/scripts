@@ -5,9 +5,13 @@ PATH="/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
 DEBUG="1"
 msg()
 {
-    if [ "$DEBUG" -gt 0 ] && [[ $- == *i* ]]
+    if [ "$DEBUG" -gt 0 ]
     then
-        echo "msg:" "$@"
+      # chack if we are interactive
+      case "$-" in
+        *i*)
+          echo "msg:" "$@";;
+      esac
     fi
 }
 
