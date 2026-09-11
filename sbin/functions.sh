@@ -274,11 +274,11 @@ ismounted() {
 	ifs="$IFS"
 	IFS="
 "
-	for line in $(cat /proc/mounts)
+	for line in $(mount)
 	do
 		IFS="$ifs"
 		set -- $line
-		[ "$dir" == "$2" ] && return 0
+		[ "$dir" == "$3" ] && return 0
 	done
 	IFS="$ifs"
 	return 1
@@ -295,10 +295,13 @@ ismounted() {
 # Cache the CONSOLETYPE - this is important as backgrounded shells don't
 # have a TTY. rc unsets it at the end of running so it shouldn't hang
 # around
-if [[ -z ${CONSOLETYPE} ]] ; then
-	export CONSOLETYPE="$( /sbin/consoletype 2>/dev/null )"
+if [ -z "${CONSOLETYPE}" ] ; then
+  case "$(tty)" in
+    /dev/ttyS*|/dev/ttyUSB*|/dev/ttyAMA*)
+      CONSOLETYPE="serial";;
+  esac
 fi
-if [[ ${CONSOLETYPE} == "serial" ]] ; then
+if [ "${CONSOLETYPE}" == "serial" ] ; then
 	RC_NOCOLOR="yes"
 	RC_ENDCOL="no"
 fi
@@ -318,7 +321,7 @@ COLS="${COLUMNS:-0}"            # bash's internal COLUMNS variable
 [ "$COLS" == 0 ]  && COLS="$(set -- $(/bin/stty size 2>/dev/null) ; echo "${2:-0}")"
 [ "$COLS" -gt 0 ] || COLS=80       # width of [ ok ] == 7
 
-if [[ ${RC_ENDCOL} == "yes" ]] ; then
+if [ "${RC_ENDCOL}" == "yes" ] ; then
 	ENDCOL="\033[A\033[$(expr "$COLS" - 8)C"
 else
 	ENDCOL=''
@@ -326,7 +329,7 @@ fi
 
 
 # Setup the colors so our messages all look pretty
-if [[ ${RC_NOCOLOR} == "yes" ]] ; then
+if [ "${RC_NOCOLOR}" == "yes" ] ; then
 	unset GOOD WARN BAD NORMAL HILITE BRACKET
 else
 	GOOD='\033[1;32m'
