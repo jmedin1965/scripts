@@ -5,17 +5,19 @@ export PATH="/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin"
 prog="$(basename "$0")"
 cache_d="/var/cache/rclone"
 
+#    "--daemon"
+
 rclone_opts=(
     "--config"
     "/root/.config/rclone/rclone.conf"
     "--vfs-cache-mode"
     "full"
     "--vfs-cache-max-age"
-    "1096dh"
+    "26280h"
     "--vfs-cache-min-free-space"
     "10g"
     "--dir-cache-time"
-    "1096d"
+    "26280h"
     "--poll-interval"
     "30s"
     "--uid"
@@ -31,6 +33,9 @@ rclone_opts=(
     "--allow-other"
     "--cache-dir"
     "$cache_d/%i"
+    "--log-file=/var/log/rclone.%i.log"
+    "--log-level"
+    "DEBUG"
 )
 
 main()
@@ -103,6 +108,16 @@ install()
 {
     local tmp_name="/etc/systemd/system/rclone-mount@.service"
 
+    cat > "/etc/logrotate.d/rclone" << END
+/var/log/rclone.*.log {
+  rotate 12
+  weekly
+  compress
+  missingok
+  notifempty
+}
+END
+
     cat > "$tmp_name" << END
 [Unit]
 Description=Rclone Mount Service for Instance %i
@@ -111,7 +126,7 @@ Wants=network-online.target
 Before=remote-fs.target
 
 [Service]
-Type=simple
+Type=exec
 User=root
 #TimeoutStartSec=180s
 TimeoutStartSec=1200s

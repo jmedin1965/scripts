@@ -1,0 +1,12 @@
+#
+# cron.d script to update local scripts
+#
+
+SHELL=/bin/sh
+PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
+
+#0 11 * * * root /root/OneDrive-Backup start 2>&1
+#0  5 * * * root /root/OneDrive-Backup stop 2>&1
+
+#0 11 * * * root /usr/local/scripts/sbin/OneDrive-Backup start 2>&1
+#0  5 * * * root /usr/local/scripts/sbin/OneDrive-Backup stop  2>&1

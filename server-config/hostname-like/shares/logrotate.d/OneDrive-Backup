@@ -1,0 +1,9 @@
+/var/log/OneDrive-Backup*.log {
+	daily
+	rotate 12
+	compress
+	delaycompress
+	missingok
+	notifempty
+	create 644 root root
+}

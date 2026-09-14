@@ -1,0 +1,50 @@
+[Unit]
+Description=Rclone Mount Service for Instance %i
+After=network-online.target
+Wants=network-online.target
+Before=remote-fs.target
+
+[Service]
+Type=exec
+User=root
+#TimeoutStartSec=180s
+TimeoutStartSec=1200s
+#TimeoutStartSec=inf
+#ExecStartPost=/bin/sleep 30
+ExecStartPost=/bin/bash -c 'while [ ! -d "/mnt/%i/Documents" ]; do echo sleeping; sleep 5; done'
+ExecStartPost=/bin/sleep 5
+ExecStartPost=/bin/systemctl restart nfs-kernel-server.service
+ExecStart=/bin/rclone mount "%i:" "/mnt/%i" \
+    "--config" \
+    "/root/.config/rclone/rclone.conf" \
+    "--vfs-cache-mode" \
+    "full" \
+    "--vfs-cache-max-age" \
+    "26280h" \
+    "--vfs-cache-min-free-space" \
+    "10g" \
+    "--dir-cache-time" \
+    "26280h" \
+    "--poll-interval" \
+    "30s" \
+    "--uid" \
+    "1000" \
+    "--gid" \
+    "1000" \
+    "--dir-perms" \
+    "0775" \
+    "--file-perms" \
+    "0664" \
+    "--umask" \
+    "005" \
+    "--allow-other" \
+    "--cache-dir" \
+    "/var/cache/rclone/%i" \
+    "--log-file=/var/log/rclone.%i.log" \
+    "--log-level" \
+    "DEBUG"
+ExecStop=/bin/fusermount3 -u "/mnt/%i"
+Restart=on-abort
+
+[Install]
+WantedBy=default.target
