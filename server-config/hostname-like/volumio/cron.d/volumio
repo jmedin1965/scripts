@@ -6,19 +6,19 @@ SHELL=/bin/sh
 PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 
 # Monday
-*/30  0-8  * * 1   root /usr/local/scripts/sbin/volumio-do.sh pause
-*/5   9-18 * * 1   root /usr/local/scripts/sbin/volumio-do.sh play
-*/30 19-23 * * 1   root /usr/local/scripts/sbin/volumio-do.sh pause
+*/30  0-8  * * 1   volumio /usr/local/scripts/sbin/volumio-do.sh pause
+*/5   9-18 * * 1   volumio /usr/local/scripts/sbin/volumio-do.sh play
+*/30 19-23 * * 1   volumio /usr/local/scripts/sbin/volumio-do.sh pause
 
 # Tuesday
-*/30  0-11 * * 2   root /usr/local/scripts/sbin/volumio-do.sh pause
-*/5  12-18 * * 2   root /usr/local/scripts/sbin/volumio-do.sh play
-*/30 19-23 * * 2   root /usr/local/scripts/sbin/volumio-do.sh pause
+*/30  0-11 * * 2   volumio /usr/local/scripts/sbin/volumio-do.sh pause
+*/5  12-18 * * 2   volumio /usr/local/scripts/sbin/volumio-do.sh play
+*/30 19-23 * * 2   volumio /usr/local/scripts/sbin/volumio-do.sh pause
 
 # Wednesday to Friday
-*/30  0-8  * * 3-5 root /usr/local/scripts/sbin/volumio-do.sh pause
-*/5   9-18 * * 3-5 root /usr/local/scripts/sbin/volumio-do.sh play
-*/30 19-23 * * 3-5 root /usr/local/scripts/sbin/volumio-do.sh pause
+*/30  0-8  * * 3-5 volumio /usr/local/scripts/sbin/volumio-do.sh pause
+*/5   9-18 * * 3-5 volumio /usr/local/scripts/sbin/volumio-do.sh play
+*/30 19-23 * * 3-5 volumio /usr/local/scripts/sbin/volumio-do.sh pause
 
 # Saturday and Sunday
-0 * * * * root /usr/local/scripts/sbin/volumio-do.sh pause
+0 * * * *          volumio /usr/local/scripts/sbin/volumio-do.sh pause

@@ -1,28 +1,37 @@
 #!/bin/bash
 #
 
+export PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin"
 /usr/bin/tty -s
 tty="$?"
 log_f="/var/log/volumio-cron.log"
 unpause_grace="3600" # if paused, cron will not unpause for this many seconds
-pause_file="/var/run/volumio_paused"
+pause_file="/tmp/volumio_paused"
 
 main()
 {
   command="${1:-status}"
+  user="$(whoami)"
+  log "user=$user"
+
+  if [ "$user" != volumio ]
+  then
+    log "must run as volumio user, doing a sudo -u volumio"
+    exec sudo -u volumio "$0" "$@"
+  fi
 
   log "tty=$tty"
 
   case "$1" in
-    OFF|off|pause|PAUSE)
+    [Oo][fF]*|[pp][aA]*)
       command="pause"
       pause
       ;;
-    ON|on|play|PLAY)
+    [On][nN]*|[pP][lL]*)
       command="play"
       play
       ;;
-    status|STATUS)
+    [sS]*)
       command="status"
       is_playing
       ;;
@@ -51,17 +60,45 @@ log()
   echo "$str" >> "$log_f"
 }
 
+kstop()
+{
+  sudo systemctl stop volumio-kiosk.service
+}
+
+kstart()
+{
+  sudo systemctl start volumio-kiosk.service
+}
+
+restart_volumio_services()
+{
+  log "restarting volumio services"
+  volumio vrestart
+  sleep 1
+  kstop
+  kstart
+  sleep 1
+  status="$(volumio status | jq -r '.status')"
+  update_status
+}
+
+update_status()
+{
+  status="$(volumio status | jq -r '.status')"
+}
+
 is_playing()
 {
-  status="$(/usr/bin/mpc)"
-  log "$status"
-  status="$(echo "$status" | grep '\[.*\]')"
-  status="${status##*[}"
-  status="${status%%]*}"
+  update_status
+  if [ -z "$status" ]
+  then
+    log "got no status, restarting services..."
+    restart_volumio_services
+  fi
   log "status=$status"
   case "$status" in
-    playing)  return 0;;
-    *)        return 1;;
+    play*)  return 0;;
+    *)      return 1;;
   esac
 }
 
@@ -90,10 +127,11 @@ pause_file_exists()
       else
         log "Create pause file, and skip play"
         touch "$pause_file"
+        chmod 0600 "$pause_file"
         skip="0"
       fi
     fi
-  else
+  else # if we do have a tty, then just delete the pause file
     if [ -e "$pause_file" ]
     then
       rm -f "$pause_file"
@@ -106,29 +144,42 @@ pause_file_exists()
 
 play()
 {
+
   if ! is_playing
   then
+    restart_volumio_services
+
     if pause_file_exists
     then
       log "Pause file exists, skip do play"
     else
-      /usr/bin/mpc play 2>&1 >> "$log_f"
       log "do play"
+      volumio play 2>&1 >> "$log_f"
+      sleep 5
+      is_playing || ( log "do play again"; volumio play 2>&1 >> "$log_f"; sleep 5 )
     fi
   else
     log "already playing, do nothing"
   fi
+
+  is_playing
 }
 
 pause()
 {
   if is_playing
   then
-    /usr/bin/mpc pause 2>&1 >> "$log_f"
+    restart_volumio_services
+
     log "do pause"
+    volumio pause 2>&1 >> "$log_f"
+    sleep 5
+    is_playing && ( log "do pause again"; volumio pause 2>&1 >> "$log_f";  sleep 5 )
   else
     log "not playing"
   fi
+
+  is_playing
 }
 
 main "$@"
