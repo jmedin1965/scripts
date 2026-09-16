@@ -21,4 +21,4 @@ PATH=/usr/local/sbin:/usr/local/bin:/sbin:/bin:/usr/sbin:/usr/bin
 */30 19-23 * * 3-5 volumio /usr/local/scripts/sbin/volumio-do.sh pause
 
 # Saturday and Sunday
-0 * * * *          volumio /usr/local/scripts/sbin/volumio-do.sh pause
+0 * * * 0,6        volumio /usr/local/scripts/sbin/volumio-do.sh pause

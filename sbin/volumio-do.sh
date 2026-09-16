@@ -11,16 +11,17 @@ pause_file="/tmp/volumio_paused"
 main()
 {
   command="${1:-status}"
+
   user="$(whoami)"
   log "user=$user"
+  log "tty=$tty"
+  log "command=$command"
 
   if [ "$user" != volumio ]
   then
     log "must run as volumio user, doing a sudo -u volumio"
     exec sudo -u volumio "$0" "$@"
   fi
-
-  log "tty=$tty"
 
   case "$1" in
     [Oo][fF]*|[pp][aA]*)
@@ -70,15 +71,20 @@ kstart()
   sudo systemctl start volumio-kiosk.service
 }
 
+krestart()
+{
+  kstop
+  sleep 1
+  kstart
+}
+
 restart_volumio_services()
 {
   log "restarting volumio services"
   volumio vrestart
   sleep 1
-  kstop
-  kstart
+  krestart
   sleep 1
-  status="$(volumio status | jq -r '.status')"
   update_status
 }
 
@@ -90,12 +96,15 @@ update_status()
 is_playing()
 {
   update_status
+
   if [ -z "$status" ]
   then
     log "got no status, restarting services..."
     restart_volumio_services
   fi
+
   log "status=$status"
+
   case "$status" in
     play*)  return 0;;
     *)      return 1;;
@@ -142,13 +151,29 @@ pause_file_exists()
   return $skip
 }
 
+force_play()
+{
+  log "do force play"
+  restart_volumio_services
+  volumio play 2>&1 >> "$log_f"
+  sleep 5
+  update_status
+}
+
+force_pause()
+{
+  log "do force pause"
+  restart_volumio_services
+  volumio pause 2>&1 >> "$log_f"
+  sleep 5
+  update_status
+}
+
 play()
 {
 
   if ! is_playing
   then
-    restart_volumio_services
-
     if pause_file_exists
     then
       log "Pause file exists, skip do play"
@@ -156,7 +181,7 @@ play()
       log "do play"
       volumio play 2>&1 >> "$log_f"
       sleep 5
-      is_playing || ( log "do play again"; volumio play 2>&1 >> "$log_f"; sleep 5 )
+      is_playing || force_play
     fi
   else
     log "already playing, do nothing"
@@ -169,12 +194,11 @@ pause()
 {
   if is_playing
   then
-    restart_volumio_services
-
     log "do pause"
     volumio pause 2>&1 >> "$log_f"
     sleep 5
-    is_playing && ( log "do pause again"; volumio pause 2>&1 >> "$log_f";  sleep 5 )
+    is_playing && force_pause
+    krestart
   else
     log "not playing"
   fi
